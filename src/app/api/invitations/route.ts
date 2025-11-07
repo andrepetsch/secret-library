@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   try {
     const session = await auth()
     
-    if (!session?.user) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
         token,
         email,
         expiresAt,
-        createdBy: session.user.id!,
+        createdBy: session.user.id,
       }
     })
 
@@ -58,13 +58,13 @@ export async function GET() {
   try {
     const session = await auth()
     
-    if (!session?.user) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const invitations = await prisma.invitation.findMany({
       where: {
-        createdBy: session.user.id!
+        createdBy: session.user.id
       },
       orderBy: {
         createdAt: 'desc'

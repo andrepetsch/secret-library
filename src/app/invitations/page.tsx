@@ -61,7 +61,8 @@ export default function Invitations() {
         const data = await response.json()
         setError(data.error || 'Failed to create invitation')
       }
-    } catch {
+    } catch (error) {
+      console.error('Invitation creation error:', error)
       setError('Failed to create invitation')
     } finally {
       setCreating(false)

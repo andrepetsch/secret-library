@@ -28,7 +28,8 @@ export default function Upload() {
         const data = await response.json()
         setError(data.error || 'Failed to upload book')
       }
-    } catch {
+    } catch (error) {
+      console.error('Upload error:', error)
       setError('Failed to upload book')
     } finally {
       setUploading(false)

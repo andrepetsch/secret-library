@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   try {
     const session = await auth()
     
-    if (!session?.user) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
         description: description || null,
         fileUrl: blob.url,
         fileType: fileType === 'application/epub+zip' ? 'epub' : 'pdf',
-        uploadedBy: session.user.id!,
+        uploadedBy: session.user.id,
       }
     })
 
