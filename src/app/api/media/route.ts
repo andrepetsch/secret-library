@@ -23,6 +23,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'File and title are required' }, { status: 400 })
     }
 
+    // Validate media type
+    const allowedMediaTypes = ['Book', 'Magazine', 'Paper', 'Article']
+    const validatedMediaType = mediaType && allowedMediaTypes.includes(mediaType) ? mediaType : 'Book'
+
     // Validate file type
     const fileType = file.type
     if (fileType !== 'application/epub+zip' && fileType !== 'application/pdf') {
@@ -42,7 +46,7 @@ export async function POST(req: NextRequest) {
         description: description || null,
         fileUrl: blob.url,
         fileType: fileType === 'application/epub+zip' ? 'epub' : 'pdf',
-        mediaType: mediaType || 'Book',
+        mediaType: validatedMediaType,
         uploadedBy: session.user.id,
       }
     })
@@ -51,24 +55,24 @@ export async function POST(req: NextRequest) {
     if (tags) {
       const tagNames = tags.split(',').map(t => t.trim()).filter(t => t)
       
-      for (const tagName of tagNames) {
-        // Find or create tag
-        let tag = await prisma.tag.findUnique({
-          where: { name: tagName }
-        })
-
-        if (!tag) {
-          tag = await prisma.tag.create({
-            data: { name: tagName }
+      if (tagNames.length > 0) {
+        // Find or create all tags in batch
+        const tagPromises = tagNames.map(async (tagName) => {
+          return prisma.tag.upsert({
+            where: { name: tagName },
+            update: {},
+            create: { name: tagName }
           })
-        }
-
-        // Connect tag to media
+        })
+        
+        const createdTags = await Promise.all(tagPromises)
+        
+        // Connect all tags to media in one operation
         await prisma.media.update({
           where: { id: media.id },
           data: {
             tags: {
-              connect: { id: tag.id }
+              connect: createdTags.map(tag => ({ id: tag.id }))
             }
           }
         })
