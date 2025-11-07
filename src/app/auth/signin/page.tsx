@@ -26,7 +26,7 @@ export default function SignIn() {
               Sign in with GitHub
             </button>
           </form>
-          <form
+          {/* <form
             action={async () => {
               "use server"
               await signIn("microsoft-entra-id", { redirectTo: "/" })
@@ -38,7 +38,7 @@ export default function SignIn() {
             >
               Sign in with Microsoft
             </button>
-          </form>
+          </form> */}
         </div>
         <p className="mt-4 text-center text-xs text-gray-600">
           Access is by invitation only
