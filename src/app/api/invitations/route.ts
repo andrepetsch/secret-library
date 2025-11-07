@@ -13,17 +13,15 @@ export async function POST(req: NextRequest) {
 
     const { email, expiresInDays = 7 } = await req.json()
 
-    if (!email) {
-      return NextResponse.json({ error: 'Email is required' }, { status: 400 })
-    }
+    // Check if user already exists (only if email is provided)
+    if (email) {
+      const existingUser = await prisma.user.findUnique({
+        where: { email }
+      })
 
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email }
-    })
-
-    if (existingUser) {
-      return NextResponse.json({ error: 'User already exists' }, { status: 400 })
+      if (existingUser) {
+        return NextResponse.json({ error: 'User already exists' }, { status: 400 })
+      }
     }
 
     // Create invitation

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
@@ -11,6 +11,19 @@ pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/b
 export default function PdfReader({ url }: { url: string }) {
   const [numPages, setNumPages] = useState<number>(0)
   const [pageNumber, setPageNumber] = useState<number>(1)
+  const [pageWidth, setPageWidth] = useState<number>(800)
+
+  useEffect(() => {
+    // Set page width based on window size
+    const updateWidth = () => {
+      setPageWidth(Math.min(window.innerWidth - 100, 800))
+    }
+    
+    updateWidth()
+    window.addEventListener('resize', updateWidth)
+    
+    return () => window.removeEventListener('resize', updateWidth)
+  }, [])
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }): void {
     setNumPages(numPages)
@@ -40,7 +53,7 @@ export default function PdfReader({ url }: { url: string }) {
             pageNumber={pageNumber}
             renderTextLayer={true}
             renderAnnotationLayer={true}
-            width={Math.min(window.innerWidth - 100, 800)}
+            width={pageWidth}
           />
         </Document>
       </div>

@@ -33,13 +33,25 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       
       // If no existing user, check for valid invitation
       if (user.email) {
-        const invitation = await prisma.invitation.findFirst({
+        // First, check for email-specific invitation
+        let invitation = await prisma.invitation.findFirst({
           where: {
             email: user.email,
             expiresAt: { gte: new Date() },
             usedAt: null
           }
         })
+        
+        // If no email-specific invitation, check for general invitations (null email)
+        if (!invitation) {
+          invitation = await prisma.invitation.findFirst({
+            where: {
+              email: null,
+              expiresAt: { gte: new Date() },
+              usedAt: null
+            }
+          })
+        }
         
         if (invitation) {
           // Mark invitation as used
