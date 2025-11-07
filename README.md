@@ -171,4 +171,4 @@ MIT
 
 ## Support
 
-For issues or questions, please open an issue on GitHub.
+For issues or questions, please open an issue on this Repository.
