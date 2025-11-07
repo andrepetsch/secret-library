@@ -11,10 +11,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       clientId: process.env.GITHUB_ID!,
       clientSecret: process.env.GITHUB_SECRET!,
     }),
-    MicrosoftEntraIDProvider({
-      clientId: process.env.MICROSOFT_ENTRA_ID_CLIENT_ID!,
-      clientSecret: process.env.MICROSOFT_ENTRA_ID_CLIENT_SECRET!,
-    }),
+    // UNCOMMENT THE FOLLOWING TO ENABLE MICROSOFT ENTRA ID AUTHENTICATION
+    // MicrosoftEntraIDProvider({
+    //   clientId: process.env.MICROSOFT_ENTRA_ID_CLIENT_ID!,
+    //   clientSecret: process.env.MICROSOFT_ENTRA_ID_CLIENT_SECRET!,
+    // }),
   ],
   pages: {
     signIn: '/auth/signin',
