@@ -139,8 +139,8 @@ secret-library/
 ## Database Schema
 
 - **User**: User accounts with OAuth provider info
-- **Book**: Uploaded books with metadata
-- **Tag**: Topics/categories for books
+- **Media**: Uploaded media items (EPUB/PDF) with metadata and media type (Book, Magazine, Paper, Article)
+- **Tag**: Topics/categories for media
 - **Invitation**: Time-limited invitation tokens
 - **Account/Session**: NextAuth.js tables
 

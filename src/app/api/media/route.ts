@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
     const author = formData.get('author') as string | null
     const description = formData.get('description') as string | null
     const tags = formData.get('tags') as string | null
+    const mediaType = formData.get('mediaType') as string | null
 
     if (!file || !title) {
       return NextResponse.json({ error: 'File and title are required' }, { status: 400 })
@@ -33,14 +34,15 @@ export async function POST(req: NextRequest) {
       access: 'public',
     })
 
-    // Create book record
-    const book = await prisma.book.create({
+    // Create media record
+    const media = await prisma.media.create({
       data: {
         title,
         author: author || null,
         description: description || null,
         fileUrl: blob.url,
         fileType: fileType === 'application/epub+zip' ? 'epub' : 'pdf',
+        mediaType: mediaType || 'Book',
         uploadedBy: session.user.id,
       }
     })
@@ -61,9 +63,9 @@ export async function POST(req: NextRequest) {
           })
         }
 
-        // Connect tag to book
-        await prisma.book.update({
-          where: { id: book.id },
+        // Connect tag to media
+        await prisma.media.update({
+          where: { id: media.id },
           data: {
             tags: {
               connect: { id: tag.id }
@@ -73,10 +75,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ book })
+    return NextResponse.json({ media })
   } catch (error) {
-    console.error('Error uploading book:', error)
-    return NextResponse.json({ error: 'Failed to upload book' }, { status: 500 })
+    console.error('Error uploading media:', error)
+    return NextResponse.json({ error: 'Failed to upload media' }, { status: 500 })
   }
 }
 
@@ -88,7 +90,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const books = await prisma.book.findMany({
+    const media = await prisma.media.findMany({
       include: {
         tags: true,
         user: {
@@ -103,9 +105,9 @@ export async function GET() {
       }
     })
 
-    return NextResponse.json({ books })
+    return NextResponse.json({ media })
   } catch (error) {
-    console.error('Error fetching books:', error)
-    return NextResponse.json({ error: 'Failed to fetch books' }, { status: 500 })
+    console.error('Error fetching media:', error)
+    return NextResponse.json({ error: 'Failed to fetch media' }, { status: 500 })
   }
 }

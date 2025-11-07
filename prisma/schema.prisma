@@ -45,7 +45,7 @@ model User {
   image         String?
   accounts      Account[]
   sessions      Session[]
-  books         Book[]
+  media         Media[]
   createdAt     DateTime  @default(now())
   invitedBy     String?
   invitedById   User?     @relation("UserInvites", fields: [invitedBy], references: [id])
@@ -70,12 +70,13 @@ model Invitation {
   createdBy String
 }
 
-model Book {
+model Media {
   id          String   @id @default(cuid())
   title       String
   author      String?
   fileUrl     String
   fileType    String // "epub" or "pdf"
+  mediaType   String   @default("Book") // "Book", "Magazine", "Paper", "Article"
   coverUrl    String?
   uploadedBy  String
   uploadedAt  DateTime @default(now())
@@ -87,5 +88,5 @@ model Book {
 model Tag {
   id    String @id @default(cuid())
   name  String @unique
-  books Book[]
+  media Media[]
 }

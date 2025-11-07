@@ -15,7 +15,7 @@ export async function GET(
 
     const { id } = await params
 
-    const book = await prisma.book.findUnique({
+    const media = await prisma.media.findUnique({
       where: { id },
       include: {
         tags: true,
@@ -28,13 +28,13 @@ export async function GET(
       }
     })
 
-    if (!book) {
-      return NextResponse.json({ error: 'Book not found' }, { status: 404 })
+    if (!media) {
+      return NextResponse.json({ error: 'Media not found' }, { status: 404 })
     }
 
-    return NextResponse.json({ book })
+    return NextResponse.json({ media })
   } catch (error) {
-    console.error('Error fetching book:', error)
-    return NextResponse.json({ error: 'Failed to fetch book' }, { status: 500 })
+    console.error('Error fetching media:', error)
+    return NextResponse.json({ error: 'Failed to fetch media' }, { status: 500 })
   }
 }

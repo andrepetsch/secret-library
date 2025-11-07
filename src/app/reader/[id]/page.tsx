@@ -8,7 +8,7 @@ import dynamic from 'next/dynamic'
 const EpubReader = dynamic(() => import('@/components/EpubReader'), { ssr: false })
 const PdfReader = dynamic(() => import('@/components/PdfReader'), { ssr: false })
 
-interface Book {
+interface Media {
   id: string
   title: string
   author: string | null
@@ -18,39 +18,39 @@ interface Book {
 
 export default function ReaderPage() {
   const params = useParams()
-  const [book, setBook] = useState<Book | null>(null)
+  const [media, setMedia] = useState<Media | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetchBook = async () => {
+    const fetchMedia = async () => {
       try {
-        const response = await fetch(`/api/books/${params.id}`)
+        const response = await fetch(`/api/media/${params.id}`)
         if (response.ok) {
           const data = await response.json()
-          setBook(data.book)
+          setMedia(data.media)
         }
       } catch (error) {
-        console.error('Error fetching book:', error)
+        console.error('Error fetching media:', error)
       } finally {
         setLoading(false)
       }
     }
-    fetchBook()
+    fetchMedia()
   }, [params.id])
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <p className="text-gray-500">Loading book...</p>
+        <p className="text-gray-500">Loading media...</p>
       </div>
     )
   }
 
-  if (!book) {
+  if (!media) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <p className="text-gray-500 mb-4">Book not found</p>
+          <p className="text-gray-500 mb-4">Media not found</p>
           <Link href="/library" className="text-blue-600 hover:text-blue-800">
             Back to Library
           </Link>
@@ -65,8 +65,8 @@ export default function ReaderPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
             <div>
-              <h1 className="text-lg font-semibold">{book.title}</h1>
-              {book.author && <p className="text-sm text-gray-300">{book.author}</p>}
+              <h1 className="text-lg font-semibold">{media.title}</h1>
+              {media.author && <p className="text-sm text-gray-300">{media.author}</p>}
             </div>
             <Link
               href="/library"
@@ -79,10 +79,10 @@ export default function ReaderPage() {
       </nav>
 
       <div className="h-[calc(100vh-4rem)]">
-        {book.fileType === 'epub' ? (
-          <EpubReader url={book.fileUrl} />
+        {media.fileType === 'epub' ? (
+          <EpubReader url={media.fileUrl} />
         ) : (
-          <PdfReader url={book.fileUrl} />
+          <PdfReader url={media.fileUrl} />
         )}
       </div>
     </div>

@@ -17,7 +17,7 @@ export default function Upload() {
     const formData = new FormData(e.currentTarget)
 
     try {
-      const response = await fetch('/api/books', {
+      const response = await fetch('/api/media', {
         method: 'POST',
         body: formData,
       })
@@ -26,11 +26,11 @@ export default function Upload() {
         router.push('/library')
       } else {
         const data = await response.json()
-        setError(data.error || 'Failed to upload book')
+        setError(data.error || 'Failed to upload media')
       }
     } catch (error) {
       console.error('Upload error:', error)
-      setError('Failed to upload book')
+      setError('Failed to upload media')
     } finally {
       setUploading(false)
     }
@@ -52,7 +52,7 @@ export default function Upload() {
 
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-2xl font-bold mb-6">Upload a Book</h2>
+          <h2 className="text-2xl font-bold mb-6">Upload Media</h2>
 
           {error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded">
@@ -91,6 +91,23 @@ export default function Upload() {
                 required
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
               />
+            </div>
+
+            <div>
+              <label htmlFor="mediaType" className="block text-sm font-medium text-gray-700">
+                Media Type *
+              </label>
+              <select
+                id="mediaType"
+                name="mediaType"
+                defaultValue="Book"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="Book">Book</option>
+                <option value="Magazine">Magazine</option>
+                <option value="Paper">Paper</option>
+                <option value="Article">Article</option>
+              </select>
             </div>
 
             <div>
