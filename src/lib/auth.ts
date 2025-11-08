@@ -56,8 +56,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               data: { usedAt: new Date() }
             })
             
-            // Clear the cookie
-            cookieStore.delete('inviteToken')
+            // Cookie will expire automatically after 10 minutes
             
             return true
           }
