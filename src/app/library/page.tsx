@@ -2,27 +2,34 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { signOut } from 'next-auth/react'
+import { signOut, useSession } from 'next-auth/react'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { EditMediaModal } from '@/components/EditMediaModal'
 
 interface Media {
   id: string
   title: string
   author: string | null
+  description: string | null
   fileType: string
   mediaType: string
   uploadedAt: string
+  uploadedBy: string
   tags: { id: string; name: string }[]
   user: { name: string | null; email: string | null }
 }
 
 export default function Library() {
+  const { data: session } = useSession()
   const [media, setMedia] = useState<Media[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('')
+  const [editingMedia, setEditingMedia] = useState<Media | null>(null)
+  const [showDeletedLink, setShowDeletedLink] = useState(false)
 
   useEffect(() => {
     fetchMedia()
+    checkDeletedMedia()
   }, [])
 
   const fetchMedia = async () => {
@@ -37,6 +44,75 @@ export default function Library() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const checkDeletedMedia = async () => {
+    try {
+      const response = await fetch('/api/media/deleted')
+      if (response.ok) {
+        const data = await response.json()
+        setShowDeletedLink(data.media.length > 0)
+      }
+    } catch (error) {
+      console.error('Error checking deleted media:', error)
+    }
+  }
+
+  const handleEdit = async (data: {
+    id: string
+    title: string
+    author: string
+    description: string
+    mediaType: string
+    tags: string
+  }) => {
+    try {
+      const response = await fetch(`/api/media/${data.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      })
+
+      if (response.ok) {
+        await fetchMedia()
+        setEditingMedia(null)
+      } else {
+        const error = await response.json()
+        alert(`Error updating media: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Error updating media:', error)
+      alert('Failed to update media')
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this media? You can restore it within one week.')) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/media/${id}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        await fetchMedia()
+        await checkDeletedMedia()
+      } else {
+        const error = await response.json()
+        alert(`Error deleting media: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Error deleting media:', error)
+      alert('Failed to delete media')
+    }
+  }
+
+  const canEditMedia = (item: Media) => {
+    return session?.user?.id === item.uploadedBy
   }
 
   const filteredMedia = media.filter(item => 
@@ -61,6 +137,14 @@ export default function Library() {
               >
                 Upload Media
               </Link>
+              {showDeletedLink && (
+                <Link
+                  href="/library/deleted"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                >
+                  Deleted Items
+                </Link>
+              )}
               <Link
                 href="/invitations"
                 className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
@@ -100,49 +184,82 @@ export default function Library() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredMedia.map((item) => (
-              <Link
+              <div
                 key={item.id}
-                href={`/reader/${item.id}`}
                 className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow p-6"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                      {item.title}
-                    </h3>
-                    {item.author && (
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{item.author}</p>
-                    )}
-                    <span className="inline-block mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      {item.mediaType}
+                <Link href={`/reader/${item.id}`} className="block">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        {item.title}
+                      </h3>
+                      {item.author && (
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{item.author}</p>
+                      )}
+                      <span className="inline-block mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        {item.mediaType}
+                      </span>
+                    </div>
+                    <span className={`px-2 py-1 text-xs font-medium rounded ${
+                      item.fileType === 'epub' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                    }`}>
+                      {item.fileType.toUpperCase()}
                     </span>
                   </div>
-                  <span className={`px-2 py-1 text-xs font-medium rounded ${
-                    item.fileType === 'epub' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                  }`}>
-                    {item.fileType.toUpperCase()}
-                  </span>
-                </div>
-                {item.tags.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {item.tags.map((tag) => (
-                      <span
-                        key={tag.id}
-                        className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded"
-                      >
-                        {tag.name}
-                      </span>
-                    ))}
+                  {item.tags.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {item.tags.map((tag) => (
+                        <span
+                          key={tag.id}
+                          className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded"
+                        >
+                          {tag.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-4 text-xs text-gray-500 dark:text-gray-400">
+                    Uploaded by {item.user.name || item.user.email}
+                  </div>
+                </Link>
+                
+                {canEditMedia(item) && (
+                  <div className="mt-4 flex gap-2 border-t dark:border-gray-700 pt-4">
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setEditingMedia(item)
+                      }}
+                      className="flex-1 px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md border border-blue-600 dark:border-blue-400"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault()
+                        handleDelete(item.id)
+                      }}
+                      className="flex-1 px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md border border-red-600 dark:border-red-400"
+                    >
+                      Delete
+                    </button>
                   </div>
                 )}
-                <div className="mt-4 text-xs text-gray-500 dark:text-gray-400">
-                  Uploaded by {item.user.name || item.user.email}
-                </div>
-              </Link>
+              </div>
             ))}
           </div>
         )}
       </div>
+
+      {editingMedia && (
+        <EditMediaModal
+          media={editingMedia}
+          isOpen={true}
+          onClose={() => setEditingMedia(null)}
+          onSave={handleEdit}
+        />
+      )}
     </div>
   )
 }
