@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
     const description = formData.get('description') as string | null
     const tags = formData.get('tags') as string | null
     const mediaType = formData.get('mediaType') as string | null
+    const mediaId = formData.get('mediaId') as string | null // Optional: add to existing media
 
     if (!file || !title) {
       return NextResponse.json({ error: 'File and title are required' }, { status: 400 })
@@ -33,49 +34,128 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Only EPUB and PDF files are allowed' }, { status: 400 })
     }
 
+    const normalizedFileType = fileType === 'application/epub+zip' ? 'epub' : 'pdf'
+
     // Upload to Vercel Blob
     const blob = await put(file.name, file, {
       access: 'public',
     })
 
-    // Create media record
-    const media = await prisma.media.create({
-      data: {
-        title,
-        author: author || null,
-        description: description || null,
-        fileUrl: blob.url,
-        fileType: fileType === 'application/epub+zip' ? 'epub' : 'pdf',
-        mediaType: validatedMediaType,
-        uploadedBy: session.user.id,
-      }
-    })
+    let media
 
-    // Handle tags
-    if (tags) {
-      const tagNames = tags.split(',').map(t => t.trim()).filter(t => t)
-      
-      if (tagNames.length > 0) {
-        // Find or create all tags in batch
-        const tagPromises = tagNames.map(async (tagName) => {
-          return prisma.tag.upsert({
-            where: { name: tagName },
-            update: {},
-            create: { name: tagName }
-          })
-        })
-        
-        const createdTags = await Promise.all(tagPromises)
-        
-        // Connect all tags to media in one operation
-        await prisma.media.update({
-          where: { id: media.id },
-          data: {
-            tags: {
-              connect: createdTags.map(tag => ({ id: tag.id }))
+    // Check if adding to existing media
+    if (mediaId) {
+      // Verify media exists and user owns it
+      const existingMedia = await prisma.media.findUnique({
+        where: { id: mediaId },
+        include: { files: true }
+      })
+
+      if (!existingMedia) {
+        return NextResponse.json({ error: 'Media not found' }, { status: 404 })
+      }
+
+      if (existingMedia.uploadedBy !== session.user.id) {
+        return NextResponse.json({ error: 'Forbidden: You can only add files to your own media' }, { status: 403 })
+      }
+
+      // Check if file type already exists
+      const existingFileType = existingMedia.files.find(f => f.fileType === normalizedFileType)
+      if (existingFileType) {
+        return NextResponse.json({ error: `A ${normalizedFileType.toUpperCase()} file already exists for this media` }, { status: 400 })
+      }
+
+      // Add file to existing media
+      await prisma.mediaFile.create({
+        data: {
+          mediaId: mediaId,
+          fileUrl: blob.url,
+          fileType: normalizedFileType
+        }
+      })
+
+      media = await prisma.media.findUnique({
+        where: { id: mediaId },
+        include: {
+          files: true,
+          tags: true,
+          user: {
+            select: {
+              name: true,
+              email: true,
             }
           }
-        })
+        }
+      })
+    } else {
+      // Create new media record with file
+      media = await prisma.media.create({
+        data: {
+          title,
+          author: author || null,
+          description: description || null,
+          mediaType: validatedMediaType,
+          uploadedBy: session.user.id,
+          files: {
+            create: {
+              fileUrl: blob.url,
+              fileType: normalizedFileType
+            }
+          }
+        },
+        include: {
+          files: true,
+          tags: true,
+          user: {
+            select: {
+              name: true,
+              email: true,
+            }
+          }
+        }
+      })
+
+      // Handle tags
+      if (tags) {
+        const tagNames = tags.split(',').map(t => t.trim()).filter(t => t)
+        
+        if (tagNames.length > 0) {
+          // Find or create all tags in batch
+          const tagPromises = tagNames.map(async (tagName) => {
+            return prisma.tag.upsert({
+              where: { name: tagName },
+              update: {},
+              create: { name: tagName }
+            })
+          })
+          
+          const createdTags = await Promise.all(tagPromises)
+          
+          // Connect all tags to media in one operation
+          await prisma.media.update({
+            where: { id: media.id },
+            data: {
+              tags: {
+                connect: createdTags.map(tag => ({ id: tag.id }))
+              }
+            }
+          })
+          
+          // Fetch updated media with tags
+          media = await prisma.media.findUnique({
+            where: { id: media.id },
+            include: {
+              files: true,
+              tags: true,
+              user: {
+                select: {
+                  name: true,
+                  email: true,
+                }
+              }
+            }
+          })
+        }
       }
     }
 
@@ -99,6 +179,7 @@ export async function GET() {
         deletedAt: null // Only fetch non-deleted media
       },
       include: {
+        files: true,
         tags: true,
         user: {
           select: {

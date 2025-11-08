@@ -18,6 +18,7 @@ export async function GET(
     const media = await prisma.media.findUnique({
       where: { id },
       include: {
+        files: true,
         tags: true,
         user: {
           select: {
@@ -57,7 +58,7 @@ export async function PUT(
     // Check if media exists and user has permission
     const existingMedia = await prisma.media.findUnique({
       where: { id },
-      include: { tags: true }
+      include: { tags: true, files: true }
     })
 
     if (!existingMedia) {
@@ -126,6 +127,7 @@ export async function PUT(
     const finalMedia = await prisma.media.findUnique({
       where: { id },
       include: {
+        files: true,
         tags: true,
         user: {
           select: {

@@ -11,10 +11,10 @@ interface Media {
   title: string
   author: string | null
   description: string | null
-  fileType: string
   mediaType: string
   uploadedAt: string
   uploadedBy: string
+  files: { id: string; fileType: string }[]
   tags: { id: string; name: string }[]
   user: { name: string | null; email: string | null }
 }
@@ -223,11 +223,20 @@ export default function Library() {
                         {item.mediaType}
                       </span>
                     </div>
-                    <span className={`px-2 py-1 text-xs font-medium rounded ${
-                      item.fileType === 'epub' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                    }`}>
-                      {item.fileType.toUpperCase()}
-                    </span>
+                    <div className="flex gap-1">
+                      {item.files.map((file) => (
+                        <span
+                          key={file.id}
+                          className={`px-2 py-1 text-xs font-medium rounded ${
+                            file.fileType === 'epub' 
+                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
+                              : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                          }`}
+                        >
+                          {file.fileType.toUpperCase()}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                   {item.tags.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-2">
