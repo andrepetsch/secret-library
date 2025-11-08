@@ -1,8 +1,4 @@
-import EPub from 'epub-metadata'
-import { writeFile, unlink } from 'fs/promises'
-import { join } from 'path'
-import { tmpdir } from 'os'
-import { randomBytes } from 'crypto'
+import { parseString } from 'xml2js'
 
 export interface MediaMetadata {
   title?: string
@@ -18,65 +14,104 @@ export interface MediaMetadata {
  * @returns Extracted metadata
  */
 export async function extractEpubMetadata(fileBuffer: Buffer): Promise<MediaMetadata> {
-  // epub-metadata expects a file path, so we need to write to a temp file
-  const tempFilePath = join(tmpdir(), `epub-${randomBytes(16).toString('hex')}.epub`)
-  
   try {
-    // Write buffer to temporary file
-    await writeFile(tempFilePath, fileBuffer)
+    // Dynamic import to handle JSZip's CommonJS export
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const JSZipModule = await import('jszip') as any
+    const zip = new JSZipModule.default()
+    const epub = await zip.loadAsync(fileBuffer)
     
-    // Extract metadata using the library
+    // Find the content.opf file (metadata file)
+    let contentOpfPath: string | null = null
+    const possiblePaths = ['content.opf', 'OEBPS/content.opf', 'EPUB/content.opf']
+    
+    for (const path of possiblePaths) {
+      if (epub.files[path]) {
+        contentOpfPath = path
+        break
+      }
+    }
+    
+    // If not found in common locations, search all files
+    if (!contentOpfPath) {
+      for (const filename in epub.files) {
+        if (filename.endsWith('.opf')) {
+          contentOpfPath = filename
+          break
+        }
+      }
+    }
+    
+    if (!contentOpfPath) {
+      console.warn('Could not find .opf metadata file in EPUB')
+      return {}
+    }
+    
+    // Read the content.opf file
+    const contentOpfFile = epub.files[contentOpfPath]
+    const contentOpfXml = await contentOpfFile.async('text')
+    
+    // Parse the XML
     return new Promise((resolve, reject) => {
-      EPub(tempFilePath)
-        .then((data: Record<string, unknown>) => {
-          const metadata: MediaMetadata = {}
-
-          // Extract title
-          if (data.title && typeof data.title === 'string') {
-            metadata.title = data.title
-          }
-
-          // Extract author (can be string or array)
-          if (data.creator) {
-            if (Array.isArray(data.creator)) {
-              metadata.author = data.creator.join(', ')
-            } else if (typeof data.creator === 'string') {
-              metadata.author = data.creator
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      parseString(contentOpfXml, { explicitArray: false }, (err, result: any) => {
+        if (err) {
+          console.error('Error parsing EPUB metadata XML:', err)
+          reject(err)
+          return
+        }
+        
+        const metadata: MediaMetadata = {}
+        
+        try {
+          const opfMetadata = result?.package?.metadata
+          
+          if (opfMetadata) {
+            // Extract title (dc:title)
+            if (opfMetadata['dc:title']) {
+              const title = opfMetadata['dc:title']
+              metadata.title = typeof title === 'string' ? title : title?._ || title
+            }
+            
+            // Extract author/creator (dc:creator)
+            if (opfMetadata['dc:creator']) {
+              const creator = opfMetadata['dc:creator']
+              if (Array.isArray(creator)) {
+                metadata.author = creator.map(c => typeof c === 'string' ? c : c?._ || c).join(', ')
+              } else {
+                metadata.author = typeof creator === 'string' ? creator : creator?._ || creator
+              }
+            }
+            
+            // Extract description (dc:description)
+            if (opfMetadata['dc:description']) {
+              const description = opfMetadata['dc:description']
+              metadata.description = typeof description === 'string' ? description : description?._ || description
+            }
+            
+            // Extract language (dc:language)
+            if (opfMetadata['dc:language']) {
+              const language = opfMetadata['dc:language']
+              metadata.language = typeof language === 'string' ? language : language?._ || language
+            }
+            
+            // Extract publication date (dc:date)
+            if (opfMetadata['dc:date']) {
+              const date = opfMetadata['dc:date']
+              metadata.publicationDate = typeof date === 'string' ? date : date?._ || date
             }
           }
-
-          // Extract description
-          if (data.description && typeof data.description === 'string') {
-            metadata.description = data.description
-          }
-
-          // Extract language
-          if (data.language && typeof data.language === 'string') {
-            metadata.language = data.language
-          }
-
-          // Extract publication date
-          if (data.date && typeof data.date === 'string') {
-            metadata.publicationDate = data.date
-          } else if (data.published && typeof data.published === 'string') {
-            metadata.publicationDate = data.published
-          }
-
+          
           resolve(metadata)
-        })
-        .catch((error: Error) => {
-          console.error('Error parsing EPUB metadata:', error)
-          reject(error)
-        })
+        } catch (error) {
+          console.error('Error extracting EPUB metadata:', error)
+          resolve({}) // Return empty metadata instead of failing
+        }
+      })
     })
-  } finally {
-    // Clean up temporary file
-    try {
-      await unlink(tempFilePath)
-    } catch (error) {
-      // Ignore errors when deleting temp file
-      console.error('Error deleting temp file:', error)
-    }
+  } catch (error) {
+    console.error('Error reading EPUB file:', error)
+    return {}
   }
 }
 

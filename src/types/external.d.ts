@@ -1,17 +1,20 @@
-declare module 'epub-metadata' {
-  interface EpubMetadata {
-    title?: string
-    creator?: string | string[]
-    description?: string
-    language?: string
-    date?: string
-    published?: string
+declare module 'jszip' {
+  // Type definitions are provided by the package itself
+}
+
+declare module 'xml2js' {
+  interface ParserOptions {
+    explicitArray?: boolean
     [key: string]: unknown
   }
 
-  function parseMetadata(filePath: string): Promise<EpubMetadata>
+  function parseString(
+    xml: string,
+    options: ParserOptions,
+    callback: (err: Error | null, result: unknown) => void
+  ): void
 
-  export = parseMetadata
+  export { parseString, ParserOptions }
 }
 
 declare module 'pdf-parse' {
