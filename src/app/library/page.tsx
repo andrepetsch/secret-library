@@ -266,6 +266,14 @@ export default function Library() {
                     >
                       Edit
                     </button>
+                    {item.files.length < 2 && (
+                      <Link
+                        href={`/upload?mediaId=${item.id}`}
+                        className="flex-1 px-3 py-1.5 text-sm font-medium text-center text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-md border border-green-600 dark:border-green-400"
+                      >
+                        Add File
+                      </Link>
+                    )}
                     <button
                       onClick={(e) => {
                         e.preventDefault()
