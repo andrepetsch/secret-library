@@ -7,6 +7,7 @@ import { cookies } from "next/headers"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: PrismaAdapter(prisma),
+  trustHost: true,
   providers: [
     GithubProvider({
       clientId: process.env.GITHUB_ID!,
@@ -108,3 +109,4 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
   },
 })
+
