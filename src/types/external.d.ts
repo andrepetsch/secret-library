@@ -9,10 +9,7 @@ declare module 'epub-metadata' {
     [key: string]: unknown
   }
 
-  function parseMetadata(
-    buffer: Buffer,
-    callback: (error: Error | null, data: EpubMetadata) => void
-  ): void
+  function parseMetadata(filePath: string): Promise<EpubMetadata>
 
   export = parseMetadata
 }

@@ -1,4 +1,8 @@
 import EPub from 'epub-metadata'
+import { writeFile, unlink } from 'fs/promises'
+import { join } from 'path'
+import { tmpdir } from 'os'
+import { randomBytes } from 'crypto'
 
 export interface MediaMetadata {
   title?: string
@@ -14,50 +18,66 @@ export interface MediaMetadata {
  * @returns Extracted metadata
  */
 export async function extractEpubMetadata(fileBuffer: Buffer): Promise<MediaMetadata> {
-  return new Promise((resolve, reject) => {
-    EPub(fileBuffer, (error: Error | null, data: Record<string, unknown>) => {
-      if (error) {
-        console.error('Error parsing EPUB metadata:', error)
-        reject(error)
-        return
-      }
+  // epub-metadata expects a file path, so we need to write to a temp file
+  const tempFilePath = join(tmpdir(), `epub-${randomBytes(16).toString('hex')}.epub`)
+  
+  try {
+    // Write buffer to temporary file
+    await writeFile(tempFilePath, fileBuffer)
+    
+    // Extract metadata using the library
+    return new Promise((resolve, reject) => {
+      EPub(tempFilePath)
+        .then((data: Record<string, unknown>) => {
+          const metadata: MediaMetadata = {}
 
-      const metadata: MediaMetadata = {}
+          // Extract title
+          if (data.title && typeof data.title === 'string') {
+            metadata.title = data.title
+          }
 
-      // Extract title
-      if (data.title && typeof data.title === 'string') {
-        metadata.title = data.title
-      }
+          // Extract author (can be string or array)
+          if (data.creator) {
+            if (Array.isArray(data.creator)) {
+              metadata.author = data.creator.join(', ')
+            } else if (typeof data.creator === 'string') {
+              metadata.author = data.creator
+            }
+          }
 
-      // Extract author (can be string or array)
-      if (data.creator) {
-        if (Array.isArray(data.creator)) {
-          metadata.author = data.creator.join(', ')
-        } else if (typeof data.creator === 'string') {
-          metadata.author = data.creator
-        }
-      }
+          // Extract description
+          if (data.description && typeof data.description === 'string') {
+            metadata.description = data.description
+          }
 
-      // Extract description
-      if (data.description && typeof data.description === 'string') {
-        metadata.description = data.description
-      }
+          // Extract language
+          if (data.language && typeof data.language === 'string') {
+            metadata.language = data.language
+          }
 
-      // Extract language
-      if (data.language && typeof data.language === 'string') {
-        metadata.language = data.language
-      }
+          // Extract publication date
+          if (data.date && typeof data.date === 'string') {
+            metadata.publicationDate = data.date
+          } else if (data.published && typeof data.published === 'string') {
+            metadata.publicationDate = data.published
+          }
 
-      // Extract publication date
-      if (data.date && typeof data.date === 'string') {
-        metadata.publicationDate = data.date
-      } else if (data.published && typeof data.published === 'string') {
-        metadata.publicationDate = data.published
-      }
-
-      resolve(metadata)
+          resolve(metadata)
+        })
+        .catch((error: Error) => {
+          console.error('Error parsing EPUB metadata:', error)
+          reject(error)
+        })
     })
-  })
+  } finally {
+    // Clean up temporary file
+    try {
+      await unlink(tempFilePath)
+    } catch (error) {
+      // Ignore errors when deleting temp file
+      console.error('Error deleting temp file:', error)
+    }
+  }
 }
 
 /**
