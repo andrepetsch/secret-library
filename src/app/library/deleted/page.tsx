@@ -9,6 +9,8 @@ interface Media {
   id: string
   title: string
   author: string | null
+  language: string | null
+  publicationDate: string | null
   mediaType: string
   uploadedAt: string
   deletedAt: string

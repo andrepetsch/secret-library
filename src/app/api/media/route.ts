@@ -16,6 +16,8 @@ export async function POST(req: NextRequest) {
     const title = formData.get('title') as string
     const author = formData.get('author') as string | null
     const description = formData.get('description') as string | null
+    const publicationDate = formData.get('publicationDate') as string | null
+    const language = formData.get('language') as string | null
     const tags = formData.get('tags') as string | null
     const mediaType = formData.get('mediaType') as string | null
     const mediaId = formData.get('mediaId') as string | null // Optional: add to existing media
@@ -94,6 +96,8 @@ export async function POST(req: NextRequest) {
           title,
           author: author || null,
           description: description || null,
+          publicationDate: publicationDate || null,
+          language: language || null,
           mediaType: validatedMediaType,
           uploadedBy: session.user.id,
           files: {
