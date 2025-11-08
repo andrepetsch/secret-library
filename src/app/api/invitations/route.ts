@@ -5,6 +5,8 @@ import { customAlphabet } from 'nanoid'
 
 // Create nanoid with only lowercase letters and numbers
 const generateToken = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 32)
+import { nanoid } from 'nanoid'
+import { sendInvitationEmail, validateEmailConfig } from '@/lib/email'
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,6 +44,20 @@ export async function POST(req: NextRequest) {
     })
 
     const inviteLink = `${process.env.NEXTAUTH_URL}/invite/${token}`
+
+    // Send invitation email if email is provided and email config is valid
+    if (email && validateEmailConfig()) {
+      try {
+        await sendInvitationEmail({
+          to: email,
+          inviteLink,
+          expiresAt,
+        })
+      } catch (emailError) {
+        console.error('Error sending invitation email:', emailError)
+        // Continue even if email fails - user can still get the link manually
+      }
+    }
 
     return NextResponse.json({ 
       invitation: {
