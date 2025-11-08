@@ -28,12 +28,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         where: { email: user.email! }
       })
       
-      // If user exists, allow sign in
-      if (existingUser) {
-        return true
-      }
-      
-      // For new users, validate the invitation token
+      // Check for invitation token cookie (whether new or existing user)
       if (user.email) {
         const cookieStore = await cookies()
         const inviteToken = cookieStore.get('inviteToken')?.value
@@ -58,10 +53,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             
             // Cookie will expire automatically after 10 minutes
             
+            // Allow sign in - invitation is valid
             return true
           }
         }
-        
+      }
+      
+      // If user exists, allow sign in (even without invitation token)
+      if (existingUser) {
+        return true
+      }
+      
+      // For new users without valid invitation token, check for fallback invitations
+      if (user.email) {
         // Fallback: check for any available invitation (for backwards compatibility)
         // First, check for email-specific invitation
         let invitation = await prisma.invitation.findFirst({
