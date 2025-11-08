@@ -61,6 +61,13 @@ Edit `.env` and add your credentials:
 - `GITHUB_ID` and `GITHUB_SECRET`: From your GitHub OAuth App
 - `MICROSOFT_ENTRA_ID_CLIENT_ID`, `MICROSOFT_ENTRA_ID_CLIENT_SECRET`, `MICROSOFT_ENTRA_ID_TENANT_ID`: From Azure AD (optional)
 - `BLOB_READ_WRITE_TOKEN`: Your Vercel Blob storage token
+- Email configuration (optional, for sending invitation emails):
+  - `EMAIL_HOST`: SMTP server host (e.g., `smtp.gmail.com`)
+  - `EMAIL_PORT`: SMTP server port (e.g., `587`)
+  - `EMAIL_SECURE`: Set to `true` for SSL/TLS (e.g., `false` for port 587)
+  - `EMAIL_USER`: Your email address
+  - `EMAIL_PASS`: Your email password or app-specific password
+  - `EMAIL_FROM`: Sender email address (e.g., `Secret Library <noreply@secret-library.local>`)
 
 4. Set up the database:
 ```bash
@@ -107,8 +114,9 @@ Then visit `http://localhost:3000/invite/first-user-token` and sign in.
 ### For Admins
 
 1. **Create Invitations**: Go to the Invitations page to create new invitation links
-2. **Manage Invitations**: View active, expired, and used invitations
-3. **Share Links**: Copy invitation links and share them with new users
+2. **Send Email Invitations**: When email configuration is set up, invitations will be automatically sent via email
+3. **Manual Sharing**: If email is not configured, copy invitation links and share them manually
+4. **Manage Invitations**: View active, expired, and used invitations
 
 ## Project Structure
 
@@ -156,6 +164,23 @@ secret-library/
 ### Environment Variables in Production
 
 Make sure to set all the environment variables from `.env.example` in your Vercel project settings.
+
+### Email Configuration
+
+The app supports sending invitation emails automatically. To enable this feature:
+
+1. **Gmail Users**: 
+   - Use an [App Password](https://support.google.com/accounts/answer/185833) instead of your regular password
+   - Set `EMAIL_HOST=smtp.gmail.com`, `EMAIL_PORT=587`, `EMAIL_SECURE=false`
+
+2. **Other SMTP Providers**:
+   - Configure the SMTP settings according to your provider's documentation
+   - Common providers: SendGrid, Amazon SES, Mailgun, etc.
+
+3. **Optional Feature**:
+   - Email configuration is optional
+   - Without email config, invitation links can still be copied and shared manually
+   - The app will gracefully fall back to manual link sharing if email is not configured
 
 ## Security Features
 
