@@ -12,6 +12,10 @@ A shared library for EPUB and PDF files with invitation-only access.
 - ✅ Reader for EPUB and PDF
 - ✅ Users can only be invited via user-specific link, which expires after X days (default: 7 days)
 - ✅ No self-registration
+- ✅ Edit media metadata (title, author, description, tags, media type)
+- ✅ Soft delete media with 7-day recovery period
+- ✅ Restore deleted media
+- ✅ Automatic permanent deletion after one week
 
 ### Future Features (SHOULD)
 - ⏳ Conversion PDF to EPUB
@@ -110,11 +114,16 @@ Then visit `http://localhost:3000/invite/first-user-token` and sign in.
 3. **Upload Books**: Upload EPUB or PDF files with metadata and tags
 4. **Read Books**: Click on any book to open it in the integrated reader
 5. **Navigation**: Use arrow keys (EPUB) or buttons (PDF) to navigate through books
+6. **Edit Media**: Click "Edit" on your own media to update title, author, description, tags, or media type
+7. **Delete Media**: Click "Delete" to soft-delete media (recoverable for 7 days)
+8. **Restore Media**: Visit the "Deleted Items" page to restore deleted media within 7 days
+9. **Automatic Cleanup**: Media deleted for more than 7 days will be permanently removed automatically
 
 ### For Admins
 
 1. **Create Invitations**: Go to the Invitations page to create new invitation links
 2. **Send Email Invitations**: When email configuration is set up, invitations will be automatically sent via email
+3. **Schedule Cleanup**: Set up automated cleanup of deleted media using Vercel Cron or external services (see [MEDIA_CLEANUP.md](MEDIA_CLEANUP.md))
 3. **Manual Sharing**: If email is not configured, copy invitation links and share them manually
 4. **Manage Invitations**: View active, expired, and used invitations
 

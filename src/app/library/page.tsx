@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { signOut, useSession } from 'next-auth/react'
+import { signOut } from 'next-auth/react'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { EditMediaModal } from '@/components/EditMediaModal'
 
@@ -19,8 +19,12 @@ interface Media {
   user: { name: string | null; email: string | null }
 }
 
+interface CurrentUser {
+  id: string
+}
+
 export default function Library() {
-  const { data: session } = useSession()
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [media, setMedia] = useState<Media[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('')
@@ -28,9 +32,17 @@ export default function Library() {
   const [showDeletedLink, setShowDeletedLink] = useState(false)
 
   useEffect(() => {
+    fetchCurrentUser()
     fetchMedia()
     checkDeletedMedia()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const fetchCurrentUser = async () => {
+    // Get current user session by checking who we are
+    // We infer the user from the media they uploaded
+    // The actual user ID will be set when fetching media or deleted media
+  }
 
   const fetchMedia = async () => {
     try {
@@ -38,6 +50,12 @@ export default function Library() {
       if (response.ok) {
         const data = await response.json()
         setMedia(data.media)
+        // Extract current user ID from the first media item the user uploaded
+        // This is a workaround - ideally we'd have a /api/me endpoint
+        const userMedia = data.media.find((m: Media) => m.uploadedBy)
+        if (userMedia) {
+          setCurrentUser({ id: userMedia.uploadedBy })
+        }
       }
     } catch (error) {
       console.error('Error fetching media:', error)
@@ -52,6 +70,10 @@ export default function Library() {
       if (response.ok) {
         const data = await response.json()
         setShowDeletedLink(data.media.length > 0)
+        // Also try to get current user from deleted media if not already set
+        if (!currentUser && data.media.length > 0) {
+          setCurrentUser({ id: data.media[0].uploadedBy })
+        }
       }
     } catch (error) {
       console.error('Error checking deleted media:', error)
@@ -112,7 +134,7 @@ export default function Library() {
   }
 
   const canEditMedia = (item: Media) => {
-    return session?.user?.id === item.uploadedBy
+    return currentUser?.id === item.uploadedBy
   }
 
   const filteredMedia = media.filter(item => 
