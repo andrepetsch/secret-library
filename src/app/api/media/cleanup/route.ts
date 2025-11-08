@@ -36,8 +36,8 @@ export async function POST() {
     }
 
     // Delete files from blob storage
-    const deletePromises = mediaToDelete.flatMap((media) => {
-      const promises = media.files.map(async (file) => {
+    const deletePromises = mediaToDelete.flatMap((media: { id: string; files: Array<{ id: string; fileUrl: string }>; coverUrl: string | null }) => {
+      const promises = media.files.map(async (file: { id: string; fileUrl: string }) => {
         try {
           await del(file.fileUrl)
         } catch (error) {
@@ -68,7 +68,7 @@ export async function POST() {
     const result = await prisma.media.deleteMany({
       where: {
         id: {
-          in: mediaToDelete.map(m => m.id)
+          in: mediaToDelete.map((m: { id: string }) => m.id)
         }
       }
     })

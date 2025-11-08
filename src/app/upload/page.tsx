@@ -11,15 +11,34 @@ interface Media {
   files: { id: string; fileType: string }[]
 }
 
+interface ExtractedMetadata {
+  title?: string
+  author?: string
+  description?: string
+  language?: string
+  publicationDate?: string
+}
+
 function UploadForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const mediaId = searchParams.get('mediaId')
   
   const [uploading, setUploading] = useState(false)
+  const [extracting, setExtracting] = useState(false)
   const [error, setError] = useState('')
   const [existingMedia, setExistingMedia] = useState<Media | null>(null)
   const [isAddingToExisting, setIsAddingToExisting] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [extractedMetadata, setExtractedMetadata] = useState<ExtractedMetadata | null>(null)
+  const [formValues, setFormValues] = useState({
+    title: '',
+    author: '',
+    description: '',
+    language: '',
+    publicationDate: '',
+    mediaType: 'Book'
+  })
 
   useEffect(() => {
     if (mediaId) {
@@ -40,16 +59,94 @@ function UploadForm() {
     }
   }
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) {
+      setSelectedFile(null)
+      setExtractedMetadata(null)
+      return
+    }
+
+    setSelectedFile(file)
+    setError('')
+    
+    // Don't extract metadata if adding to existing media
+    if (isAddingToExisting) {
+      return
+    }
+
+    // Extract metadata from the file
+    setExtracting(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch('/api/media/extract-metadata', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setExtractedMetadata(data.metadata)
+        
+        // Pre-fill form with extracted metadata
+        setFormValues({
+          title: data.metadata.title || '',
+          author: data.metadata.author || '',
+          description: data.metadata.description || '',
+          language: data.metadata.language || '',
+          publicationDate: data.metadata.publicationDate || '',
+          mediaType: 'Book'
+        })
+      } else {
+        console.error('Failed to extract metadata')
+        // Don't show error to user, just continue with empty form
+      }
+    } catch (error) {
+      console.error('Error extracting metadata:', error)
+      // Don't show error to user, just continue with empty form
+    } finally {
+      setExtracting(false)
+    }
+  }
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target
+    setFormValues(prev => ({ ...prev, [name]: value }))
+  }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setUploading(true)
     setError('')
 
-    const formData = new FormData(e.currentTarget)
+    const formData = new FormData()
+    
+    if (!selectedFile) {
+      setError('Please select a file')
+      setUploading(false)
+      return
+    }
+
+    formData.append('file', selectedFile)
     
     // Add mediaId if adding to existing media
     if (isAddingToExisting && existingMedia) {
       formData.append('mediaId', existingMedia.id)
+    } else {
+      // Add all metadata fields for new media
+      formData.append('title', formValues.title)
+      formData.append('author', formValues.author)
+      formData.append('description', formValues.description)
+      formData.append('language', formValues.language)
+      formData.append('publicationDate', formValues.publicationDate)
+      formData.append('mediaType', formValues.mediaType)
+      
+      const tagsInput = (document.getElementById('tags') as HTMLInputElement)?.value
+      if (tagsInput) {
+        formData.append('tags', tagsInput)
+      }
     }
 
     try {
@@ -103,6 +200,19 @@ function UploadForm() {
           </div>
         )}
 
+        {extracting && (
+          <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 rounded">
+            Extracting metadata from file...
+          </div>
+        )}
+
+        {extractedMetadata && !isAddingToExisting && (
+          <div className="mb-4 p-4 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 rounded">
+            <p className="font-medium">Metadata extracted successfully!</p>
+            <p className="text-sm mt-1">You can review and edit the information below before uploading.</p>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label htmlFor="file" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -114,6 +224,7 @@ function UploadForm() {
               name="file"
               accept=".epub,.pdf,application/epub+zip,application/pdf"
               required
+              onChange={handleFileChange}
               className="mt-1 block w-full text-sm text-gray-500 dark:text-gray-400
                 file:mr-4 file:py-2 file:px-4
                 file:rounded-md file:border-0
@@ -135,6 +246,8 @@ function UploadForm() {
                   id="title"
                   name="title"
                   required
+                  value={formValues.title}
+                  onChange={handleInputChange}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
               </div>
@@ -146,7 +259,8 @@ function UploadForm() {
                 <select
                   id="mediaType"
                   name="mediaType"
-                  defaultValue="Book"
+                  value={formValues.mediaType}
+                  onChange={handleInputChange}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
                   <option value="Book">Book</option>
@@ -164,6 +278,8 @@ function UploadForm() {
                   type="text"
                   id="author"
                   name="author"
+                  value={formValues.author}
+                  onChange={handleInputChange}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
               </div>
@@ -176,7 +292,39 @@ function UploadForm() {
                   id="description"
                   name="description"
                   rows={4}
+                  value={formValues.description}
+                  onChange={handleInputChange}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="language" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Language
+                </label>
+                <input
+                  type="text"
+                  id="language"
+                  name="language"
+                  placeholder="e.g., en, de, fr"
+                  value={formValues.language}
+                  onChange={handleInputChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="publicationDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Publication Date
+                </label>
+                <input
+                  type="text"
+                  id="publicationDate"
+                  name="publicationDate"
+                  placeholder="e.g., 2023, 2023-06, 2023-06-15"
+                  value={formValues.publicationDate}
+                  onChange={handleInputChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                 />
               </div>
 

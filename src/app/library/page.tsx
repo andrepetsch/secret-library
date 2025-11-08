@@ -11,6 +11,8 @@ interface Media {
   title: string
   author: string | null
   description: string | null
+  language: string | null
+  publicationDate: string | null
   mediaType: string
   uploadedAt: string
   uploadedBy: string
@@ -85,6 +87,8 @@ export default function Library() {
     title: string
     author: string
     description: string
+    language: string
+    publicationDate: string
     mediaType: string
     tags: string
   }) => {

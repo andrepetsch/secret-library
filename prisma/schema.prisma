@@ -71,18 +71,20 @@ model Invitation {
 }
 
 model Media {
-  id          String      @id @default(cuid())
-  title       String
-  author      String?
-  mediaType   String      @default("Book") // "Book", "Magazine", "Paper", "Article"
-  coverUrl    String?
-  uploadedBy  String
-  uploadedAt  DateTime    @default(now())
-  description String?
-  deletedAt   DateTime?   // Soft delete timestamp
-  user        User        @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
-  tags        Tag[]
-  files       MediaFile[]
+  id              String      @id @default(cuid())
+  title           String
+  author          String?
+  publicationDate String?     // Publication date as string (can be year, month-year, or full date)
+  language        String?     // Language code (e.g., "en", "de", "fr")
+  mediaType       String      @default("Book") // "Book", "Magazine", "Paper", "Article"
+  coverUrl        String?
+  uploadedBy      String
+  uploadedAt      DateTime    @default(now())
+  description     String?
+  deletedAt       DateTime?   // Soft delete timestamp
+  user            User        @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
+  tags            Tag[]
+  files           MediaFile[]
 }
 
 model MediaFile {

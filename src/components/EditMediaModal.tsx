@@ -8,6 +8,8 @@ interface EditMediaModalProps {
     title: string
     author: string | null
     description: string | null
+    language: string | null
+    publicationDate: string | null
     mediaType: string
     tags: { id: string; name: string }[]
   }
@@ -18,6 +20,8 @@ interface EditMediaModalProps {
     title: string
     author: string
     description: string
+    language: string
+    publicationDate: string
     mediaType: string
     tags: string
   }) => void
@@ -27,6 +31,8 @@ export function EditMediaModal({ media, isOpen, onClose, onSave }: EditMediaModa
   const [title, setTitle] = useState(media.title)
   const [author, setAuthor] = useState(media.author || '')
   const [description, setDescription] = useState(media.description || '')
+  const [language, setLanguage] = useState(media.language || '')
+  const [publicationDate, setPublicationDate] = useState(media.publicationDate || '')
   const [mediaType, setMediaType] = useState(media.mediaType)
   const [tags, setTags] = useState(media.tags.map(t => t.name).join(', '))
   const [saving, setSaving] = useState(false)
@@ -40,6 +46,8 @@ export function EditMediaModal({ media, isOpen, onClose, onSave }: EditMediaModa
         title,
         author,
         description,
+        language,
+        publicationDate,
         mediaType,
         tags
       })
@@ -106,6 +114,34 @@ export function EditMediaModal({ media, isOpen, onClose, onSave }: EditMediaModa
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="language" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Language
+              </label>
+              <input
+                type="text"
+                id="language"
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                placeholder="e.g., en, de, fr"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="publicationDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Publication Date
+              </label>
+              <input
+                type="text"
+                id="publicationDate"
+                value={publicationDate}
+                onChange={(e) => setPublicationDate(e.target.value)}
+                placeholder="e.g., 2023, 2023-06, 2023-06-15"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>

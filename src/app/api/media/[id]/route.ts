@@ -53,7 +53,7 @@ export async function PUT(
 
     const { id } = await params
     const body = await req.json()
-    const { title, author, description, tags, mediaType } = body
+    const { title, author, description, publicationDate, language, tags, mediaType } = body
 
     // Check if media exists and user has permission
     const existingMedia = await prisma.media.findUnique({
@@ -80,6 +80,8 @@ export async function PUT(
         title: title || existingMedia.title,
         author: author !== undefined ? author : existingMedia.author,
         description: description !== undefined ? description : existingMedia.description,
+        publicationDate: publicationDate !== undefined ? publicationDate : existingMedia.publicationDate,
+        language: language !== undefined ? language : existingMedia.language,
         mediaType: validatedMediaType,
       }
     })
@@ -91,7 +93,7 @@ export async function PUT(
         where: { id },
         data: {
           tags: {
-            disconnect: existingMedia.tags.map(tag => ({ id: tag.id }))
+            disconnect: existingMedia.tags.map((tag: { id: string }) => ({ id: tag.id }))
           }
         }
       })
