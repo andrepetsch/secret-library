@@ -71,17 +71,18 @@ model Invitation {
 }
 
 model Media {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   title       String
   author      String?
   fileUrl     String
-  fileType    String // "epub" or "pdf"
-  mediaType   String   @default("Book") // "Book", "Magazine", "Paper", "Article"
+  fileType    String    // "epub" or "pdf"
+  mediaType   String    @default("Book") // "Book", "Magazine", "Paper", "Article"
   coverUrl    String?
   uploadedBy  String
-  uploadedAt  DateTime @default(now())
+  uploadedAt  DateTime  @default(now())
   description String?
-  user        User     @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
+  deletedAt   DateTime? // Soft delete timestamp
+  user        User      @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
   tags        Tag[]
 }
 

@@ -95,6 +95,9 @@ export async function GET() {
     }
 
     const media = await prisma.media.findMany({
+      where: {
+        deletedAt: null // Only fetch non-deleted media
+      },
       include: {
         tags: true,
         user: {
