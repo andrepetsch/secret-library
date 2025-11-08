@@ -91,7 +91,7 @@ export async function PUT(
         where: { id },
         data: {
           tags: {
-            disconnect: existingMedia.tags.map(tag => ({ id: tag.id }))
+            disconnect: existingMedia.tags.map((tag: { id: string }) => ({ id: tag.id }))
           }
         }
       })
