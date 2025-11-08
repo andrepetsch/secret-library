@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
-import { cookies } from 'next/headers'
 import Link from 'next/link'
 
 export default async function InvitePage({ 
@@ -67,15 +66,6 @@ export default async function InvitePage({
     )
   }
 
-  // Store the invitation token in a cookie for the auth callback to validate
-  const cookieStore = await cookies()
-  cookieStore.set('inviteToken', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 60 * 10 // 10 minutes
-  })
-
-  // Valid invitation - redirect to sign in
-  redirect('/auth/signin')
+  // Valid invitation - redirect to API route to set cookie and proceed to sign in
+  redirect('/api/invite/' + token)
 }
