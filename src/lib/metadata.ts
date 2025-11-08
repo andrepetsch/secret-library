@@ -15,7 +15,7 @@ export interface MediaMetadata {
  */
 export async function extractEpubMetadata(fileBuffer: Buffer): Promise<MediaMetadata> {
   return new Promise((resolve, reject) => {
-    EPub(fileBuffer, (error: Error | null, data: any) => {
+    EPub(fileBuffer, (error: Error | null, data: Record<string, unknown>) => {
       if (error) {
         console.error('Error parsing EPUB metadata:', error)
         reject(error)
@@ -25,7 +25,7 @@ export async function extractEpubMetadata(fileBuffer: Buffer): Promise<MediaMeta
       const metadata: MediaMetadata = {}
 
       // Extract title
-      if (data.title) {
+      if (data.title && typeof data.title === 'string') {
         metadata.title = data.title
       }
 
@@ -39,19 +39,19 @@ export async function extractEpubMetadata(fileBuffer: Buffer): Promise<MediaMeta
       }
 
       // Extract description
-      if (data.description) {
+      if (data.description && typeof data.description === 'string') {
         metadata.description = data.description
       }
 
       // Extract language
-      if (data.language) {
+      if (data.language && typeof data.language === 'string') {
         metadata.language = data.language
       }
 
       // Extract publication date
-      if (data.date) {
+      if (data.date && typeof data.date === 'string') {
         metadata.publicationDate = data.date
-      } else if (data.published) {
+      } else if (data.published && typeof data.published === 'string') {
         metadata.publicationDate = data.published
       }
 

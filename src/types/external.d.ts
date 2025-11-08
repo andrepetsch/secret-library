@@ -6,7 +6,7 @@ declare module 'epub-metadata' {
     language?: string
     date?: string
     published?: string
-    [key: string]: any
+    [key: string]: unknown
   }
 
   function parseMetadata(
@@ -23,14 +23,14 @@ declare module 'pdf-parse' {
     Author?: string
     Subject?: string
     CreationDate?: string
-    [key: string]: any
+    [key: string]: unknown
   }
 
   interface PdfData {
     info: PdfInfo
     text: string
     numpages: number
-    [key: string]: any
+    [key: string]: unknown
   }
 
   function pdfParse(buffer: Buffer): Promise<PdfData>
