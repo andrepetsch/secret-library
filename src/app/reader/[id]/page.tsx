@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 const EpubReader = dynamic(() => import('@/components/EpubReader'), { ssr: false })
 const PdfReader = dynamic(() => import('@/components/PdfReader'), { ssr: false })
@@ -40,18 +41,18 @@ export default function ReaderPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <p className="text-gray-500">Loading media...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <p className="text-gray-500 dark:text-gray-400">Loading media...</p>
       </div>
     )
   }
 
   if (!media) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
-          <p className="text-gray-500 mb-4">Media not found</p>
-          <Link href="/library" className="text-blue-600 hover:text-blue-800">
+          <p className="text-gray-500 dark:text-gray-400 mb-4">Media not found</p>
+          <Link href="/library" className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
             Back to Library
           </Link>
         </div>
@@ -61,19 +62,22 @@ export default function ReaderPage() {
 
   return (
     <div className="min-h-screen bg-gray-900">
-      <nav className="bg-gray-800 text-white">
+      <nav className="bg-gray-800 dark:bg-gray-950 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
             <div>
               <h1 className="text-lg font-semibold">{media.title}</h1>
-              {media.author && <p className="text-sm text-gray-300">{media.author}</p>}
+              {media.author && <p className="text-sm text-gray-300 dark:text-gray-400">{media.author}</p>}
             </div>
-            <Link
-              href="/library"
-              className="px-4 py-2 text-sm font-medium text-white bg-gray-700 rounded-md hover:bg-gray-600"
-            >
-              Back to Library
-            </Link>
+            <div className="flex items-center space-x-4">
+              <ThemeToggle />
+              <Link
+                href="/library"
+                className="px-4 py-2 text-sm font-medium text-white bg-gray-700 dark:bg-gray-800 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
+              >
+                Back to Library
+              </Link>
+            </div>
           </div>
         </div>
       </nav>
