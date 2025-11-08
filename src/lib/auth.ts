@@ -3,6 +3,7 @@ import GithubProvider from "next-auth/providers/github"
 // import MicrosoftEntraIDProvider from "next-auth/providers/microsoft-entra-id"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "@/lib/prisma"
+import { cookies } from "next/headers"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: PrismaAdapter(prisma),
@@ -32,8 +33,37 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         return true
       }
       
-      // If no existing user, check for valid invitation
+      // For new users, validate the invitation token
       if (user.email) {
+        const cookieStore = await cookies()
+        const inviteToken = cookieStore.get('inviteToken')?.value
+        
+        if (inviteToken) {
+          // Validate the specific invitation token from the cookie
+          const invitation = await prisma.invitation.findUnique({
+            where: {
+              token: inviteToken,
+            }
+          })
+          
+          if (invitation && 
+              !invitation.usedAt && 
+              invitation.expiresAt >= new Date() &&
+              (!invitation.email || invitation.email === user.email)) {
+            // Mark invitation as used
+            await prisma.invitation.update({
+              where: { id: invitation.id },
+              data: { usedAt: new Date() }
+            })
+            
+            // Clear the cookie
+            cookieStore.delete('inviteToken')
+            
+            return true
+          }
+        }
+        
+        // Fallback: check for any available invitation (for backwards compatibility)
         // First, check for email-specific invitation
         let invitation = await prisma.invitation.findFirst({
           where: {
