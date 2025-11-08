@@ -11,10 +11,10 @@ interface Media {
   title: string
   author: string | null
   description: string | null
-  fileType: string
   mediaType: string
   uploadedAt: string
   uploadedBy: string
+  files: { id: string; fileType: string }[]
   tags: { id: string; name: string }[]
   user: { name: string | null; email: string | null }
 }
@@ -223,11 +223,20 @@ export default function Library() {
                         {item.mediaType}
                       </span>
                     </div>
-                    <span className={`px-2 py-1 text-xs font-medium rounded ${
-                      item.fileType === 'epub' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                    }`}>
-                      {item.fileType.toUpperCase()}
-                    </span>
+                    <div className="flex gap-1">
+                      {item.files.map((file) => (
+                        <span
+                          key={file.id}
+                          className={`px-2 py-1 text-xs font-medium rounded ${
+                            file.fileType === 'epub' 
+                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
+                              : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                          }`}
+                        >
+                          {file.fileType.toUpperCase()}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                   {item.tags.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-2">
@@ -257,6 +266,14 @@ export default function Library() {
                     >
                       Edit
                     </button>
+                    {item.files.length < 2 && (
+                      <Link
+                        href={`/upload?mediaId=${item.id}`}
+                        className="flex-1 px-3 py-1.5 text-sm font-medium text-center text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-md border border-green-600 dark:border-green-400"
+                      >
+                        Add File
+                      </Link>
+                    )}
                     <button
                       onClick={(e) => {
                         e.preventDefault()

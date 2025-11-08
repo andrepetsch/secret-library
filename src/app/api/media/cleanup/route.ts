@@ -22,6 +22,9 @@ export async function POST() {
           not: null,
           lt: oneWeekAgo
         }
+      },
+      include: {
+        files: true
       }
     })
 
@@ -33,16 +36,30 @@ export async function POST() {
     }
 
     // Delete files from blob storage
-    const deletePromises = mediaToDelete.map(async (media) => {
-      try {
-        await del(media.fileUrl)
-        if (media.coverUrl) {
-          await del(media.coverUrl)
+    const deletePromises = mediaToDelete.flatMap((media) => {
+      const promises = media.files.map(async (file) => {
+        try {
+          await del(file.fileUrl)
+        } catch (error) {
+          console.error(`Error deleting blob for file ${file.id}:`, error)
+          // Continue even if blob deletion fails
         }
-      } catch (error) {
-        console.error(`Error deleting blob for media ${media.id}:`, error)
-        // Continue even if blob deletion fails
+      })
+      
+      // Also delete cover if exists
+      if (media.coverUrl) {
+        promises.push(
+          (async () => {
+            try {
+              await del(media.coverUrl!)
+            } catch (error) {
+              console.error(`Error deleting cover for media ${media.id}:`, error)
+            }
+          })()
+        )
       }
+      
+      return promises
     })
 
     await Promise.all(deletePromises)

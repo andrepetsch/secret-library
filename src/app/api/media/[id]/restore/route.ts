@@ -39,6 +39,7 @@ export async function POST(
         deletedAt: null
       },
       include: {
+        files: true,
         tags: true,
         user: {
           select: {

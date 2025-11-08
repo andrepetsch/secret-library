@@ -9,18 +9,24 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 const EpubReader = dynamic(() => import('@/components/EpubReader'), { ssr: false })
 const PdfReader = dynamic(() => import('@/components/PdfReader'), { ssr: false })
 
+interface MediaFile {
+  id: string
+  fileUrl: string
+  fileType: string
+}
+
 interface Media {
   id: string
   title: string
   author: string | null
-  fileUrl: string
-  fileType: string
+  files: MediaFile[]
 }
 
 export default function ReaderPage() {
   const params = useParams()
   const [media, setMedia] = useState<Media | null>(null)
   const [loading, setLoading] = useState(true)
+  const [selectedFile, setSelectedFile] = useState<MediaFile | null>(null)
 
   useEffect(() => {
     const fetchMedia = async () => {
@@ -29,6 +35,11 @@ export default function ReaderPage() {
         if (response.ok) {
           const data = await response.json()
           setMedia(data.media)
+          // Auto-select first file or prefer EPUB if available
+          if (data.media.files && data.media.files.length > 0) {
+            const epubFile = data.media.files.find((f: MediaFile) => f.fileType === 'epub')
+            setSelectedFile(epubFile || data.media.files[0])
+          }
         }
       } catch (error) {
         console.error('Error fetching media:', error)
@@ -47,11 +58,13 @@ export default function ReaderPage() {
     )
   }
 
-  if (!media) {
+  if (!media || !selectedFile) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
-          <p className="text-gray-500 dark:text-gray-400 mb-4">Media not found</p>
+          <p className="text-gray-500 dark:text-gray-400 mb-4">
+            {!media ? 'Media not found' : 'No files available'}
+          </p>
           <Link href="/library" className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
             Back to Library
           </Link>
@@ -70,6 +83,22 @@ export default function ReaderPage() {
               {media.author && <p className="text-sm text-gray-300 dark:text-gray-400">{media.author}</p>}
             </div>
             <div className="flex items-center space-x-4">
+              {media.files.length > 1 && (
+                <select
+                  value={selectedFile.id}
+                  onChange={(e) => {
+                    const file = media.files.find(f => f.id === e.target.value)
+                    if (file) setSelectedFile(file)
+                  }}
+                  className="px-3 py-1.5 text-sm bg-gray-700 dark:bg-gray-800 text-white border border-gray-600 rounded-md"
+                >
+                  {media.files.map(file => (
+                    <option key={file.id} value={file.id}>
+                      {file.fileType.toUpperCase()}
+                    </option>
+                  ))}
+                </select>
+              )}
               <ThemeToggle />
               <Link
                 href="/library"
@@ -83,10 +112,10 @@ export default function ReaderPage() {
       </nav>
 
       <div className="h-[calc(100vh-4rem)]">
-        {media.fileType === 'epub' ? (
-          <EpubReader url={media.fileUrl} />
+        {selectedFile.fileType === 'epub' ? (
+          <EpubReader url={selectedFile.fileUrl} />
         ) : (
-          <PdfReader url={media.fileUrl} />
+          <PdfReader url={selectedFile.fileUrl} />
         )}
       </div>
     </div>

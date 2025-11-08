@@ -17,6 +17,7 @@ export async function GET() {
         uploadedBy: session.user.id
       },
       include: {
+        files: true,
         tags: true,
         user: {
           select: {
