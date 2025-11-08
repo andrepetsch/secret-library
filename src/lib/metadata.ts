@@ -9,6 +9,35 @@ export interface MediaMetadata {
 }
 
 /**
+ * Helper function to extract text from various metadata value formats
+ * @param value - The metadata value (can be string, object, or array)
+ * @returns Extracted string value or undefined
+ */
+function extractTextValue(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    return value
+  }
+  if (Array.isArray(value)) {
+    // If it's an array, take the first element
+    return extractTextValue(value[0])
+  }
+  if (value && typeof value === 'object') {
+    // Check for _ property which contains text content in xml2js
+    const objValue = value as Record<string, unknown>
+    if (objValue._) {
+      return String(objValue._)
+    }
+    // Try to find any string property
+    for (const key in objValue) {
+      if (typeof objValue[key] === 'string') {
+        return objValue[key] as string
+      }
+    }
+  }
+  return undefined
+}
+
+/**
  * Extract metadata from an EPUB file
  * @param fileBuffer - The EPUB file as a Buffer
  * @returns Extracted metadata
@@ -69,36 +98,40 @@ export async function extractEpubMetadata(fileBuffer: Buffer): Promise<MediaMeta
           if (opfMetadata) {
             // Extract title (dc:title)
             if (opfMetadata['dc:title']) {
-              const title = opfMetadata['dc:title']
-              metadata.title = typeof title === 'string' ? title : title?._ || title
+              const title = extractTextValue(opfMetadata['dc:title'])
+              if (title) metadata.title = title
             }
             
             // Extract author/creator (dc:creator)
             if (opfMetadata['dc:creator']) {
               const creator = opfMetadata['dc:creator']
               if (Array.isArray(creator)) {
-                metadata.author = creator.map(c => typeof c === 'string' ? c : c?._ || c).join(', ')
+                const authors = creator
+                  .map(c => extractTextValue(c))
+                  .filter(a => a !== undefined)
+                metadata.author = authors.join(', ')
               } else {
-                metadata.author = typeof creator === 'string' ? creator : creator?._ || creator
+                const author = extractTextValue(creator)
+                if (author) metadata.author = author
               }
             }
             
             // Extract description (dc:description)
             if (opfMetadata['dc:description']) {
-              const description = opfMetadata['dc:description']
-              metadata.description = typeof description === 'string' ? description : description?._ || description
+              const description = extractTextValue(opfMetadata['dc:description'])
+              if (description) metadata.description = description
             }
             
             // Extract language (dc:language)
             if (opfMetadata['dc:language']) {
-              const language = opfMetadata['dc:language']
-              metadata.language = typeof language === 'string' ? language : language?._ || language
+              const language = extractTextValue(opfMetadata['dc:language'])
+              if (language) metadata.language = language
             }
             
             // Extract publication date (dc:date)
             if (opfMetadata['dc:date']) {
-              const date = opfMetadata['dc:date']
-              metadata.publicationDate = typeof date === 'string' ? date : date?._ || date
+              const date = extractTextValue(opfMetadata['dc:date'])
+              if (date) metadata.publicationDate = date
             }
           }
           
@@ -122,46 +155,49 @@ export async function extractEpubMetadata(fileBuffer: Buffer): Promise<MediaMeta
  */
 export async function extractPdfMetadata(fileBuffer: Buffer): Promise<MediaMetadata> {
   try {
-    // Dynamic import to avoid build-time issues with pdf-parse
-    const pdfParse = (await import('pdf-parse')).default
-    const data = await pdfParse(fileBuffer)
+    // Dynamic import pdf-lib
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pdfLib = await import('pdf-lib') as any
+    const PDFDocument = pdfLib.PDFDocument
+    
+    // Load the PDF document
+    const pdfDoc = await PDFDocument.load(fileBuffer)
     const metadata: MediaMetadata = {}
 
     // Extract metadata from PDF info
-    if (data.info) {
-      // Title
-      if (data.info.Title) {
-        metadata.title = data.info.Title
-      }
+    const title = pdfDoc.getTitle()
+    const author = pdfDoc.getAuthor()
+    const subject = pdfDoc.getSubject()
+    const creationDate = pdfDoc.getCreationDate()
 
-      // Author
-      if (data.info.Author) {
-        metadata.author = data.info.Author
-      }
+    // Title
+    if (title) {
+      metadata.title = title
+    }
 
-      // Subject (use as description)
-      if (data.info.Subject) {
-        metadata.description = data.info.Subject
-      }
+    // Author
+    if (author) {
+      metadata.author = author
+    }
 
-      // Creation date
-      if (data.info.CreationDate) {
-        // PDF dates are in format "D:YYYYMMDDHHmmSS"
-        const dateStr = data.info.CreationDate.toString()
-        const match = dateStr.match(/D:(\d{4})(\d{2})(\d{2})/)
-        if (match) {
-          const year = match[1]
-          const month = match[2]
-          const day = match[3]
-          metadata.publicationDate = `${year}-${month}-${day}`
-        }
-      }
+    // Subject (use as description)
+    if (subject) {
+      metadata.description = subject
+    }
+
+    // Creation date
+    if (creationDate) {
+      // PDF creation dates are Date objects
+      const year = creationDate.getFullYear()
+      const month = String(creationDate.getMonth() + 1).padStart(2, '0')
+      const day = String(creationDate.getDate()).padStart(2, '0')
+      metadata.publicationDate = `${year}-${month}-${day}`
     }
 
     return metadata
   } catch (error) {
     console.error('Error parsing PDF metadata:', error)
-    throw error
+    return {}
   }
 }
 
