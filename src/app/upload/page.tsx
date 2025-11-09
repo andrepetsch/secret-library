@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { upload } from '@vercel/blob/client'
+import { extractMetadataClient } from '@/lib/metadata-client'
 
 interface Media {
   id: string
@@ -76,34 +77,22 @@ function UploadForm() {
       return
     }
 
-    // Extract metadata from the file
+    // Extract metadata from the file (client-side)
     setExtracting(true)
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-
-      const response = await fetch('/api/media/extract-metadata', {
-        method: 'POST',
-        body: formData,
+      const metadata = await extractMetadataClient(file)
+      console.log('[Upload] Extracted metadata client-side:', metadata)
+      setExtractedMetadata(metadata)
+      
+      // Pre-fill form with extracted metadata
+      setFormValues({
+        title: metadata.title || '',
+        author: metadata.author || '',
+        description: metadata.description || '',
+        language: metadata.language || '',
+        publicationDate: metadata.publicationDate || '',
+        mediaType: 'Book'
       })
-
-      if (response.ok) {
-        const data = await response.json()
-        setExtractedMetadata(data.metadata)
-        
-        // Pre-fill form with extracted metadata
-        setFormValues({
-          title: data.metadata.title || '',
-          author: data.metadata.author || '',
-          description: data.metadata.description || '',
-          language: data.metadata.language || '',
-          publicationDate: data.metadata.publicationDate || '',
-          mediaType: 'Book'
-        })
-      } else {
-        console.error('Failed to extract metadata')
-        // Don't show error to user, just continue with empty form
-      }
     } catch (error) {
       console.error('Error extracting metadata:', error)
       // Don't show error to user, just continue with empty form
@@ -156,6 +145,28 @@ function UploadForm() {
       })
 
       console.log('Upload successful:', blob.url)
+      console.log('Download URL:', blob.downloadUrl)
+      
+      // Create media record in database after upload completes
+      // This is more reliable than relying on the onUploadCompleted webhook
+      // Use downloadUrl instead of url for proper CORS and content-type headers
+      const createMediaResponse = await fetch('/api/media/create-from-blob', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          blobUrl: blob.downloadUrl,
+          contentType: blob.contentType,
+          ...metadata
+        }),
+      })
+
+      if (!createMediaResponse.ok) {
+        const errorData = await createMediaResponse.json()
+        throw new Error(errorData.error || 'Failed to create media record')
+      }
+
       router.push('/library')
     } catch (error) {
       console.error('Upload error:', error)
