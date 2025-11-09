@@ -89,6 +89,7 @@ function UploadForm() {
 
       if (response.ok) {
         const data = await response.json()
+        console.log('[Upload] Extracted metadata:', data.metadata)
         setExtractedMetadata(data.metadata)
         
         // Pre-fill form with extracted metadata
@@ -101,7 +102,8 @@ function UploadForm() {
           mediaType: 'Book'
         })
       } else {
-        console.error('Failed to extract metadata')
+        const errorText = await response.text()
+        console.error('Failed to extract metadata:', response.status, errorText)
         // Don't show error to user, just continue with empty form
       }
     } catch (error) {

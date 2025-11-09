@@ -28,6 +28,8 @@ export async function POST(req: NextRequest) {
     // Extract metadata from the file
     const metadata = await extractMetadata(file, normalizedFileType)
 
+    console.log('[Extract Metadata] Extracted metadata:', metadata)
+
     return NextResponse.json({ 
       metadata,
       fileType: normalizedFileType
