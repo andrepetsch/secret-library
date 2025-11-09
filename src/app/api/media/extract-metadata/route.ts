@@ -31,10 +31,13 @@ export async function POST(req: NextRequest) {
     console.log('[Extract Metadata] Extracted metadata:', metadata)
 
     // Generate tags from title and description
+    console.log('[Extract Metadata] Attempting to generate tags from title and description...')
     const generatedTags = await generateTags(metadata.title, metadata.description)
     if (generatedTags) {
       metadata.tags = generatedTags
       console.log('[Extract Metadata] Generated tags:', generatedTags)
+    } else {
+      console.log('[Extract Metadata] No tags were generated (check logs above for reason)')
     }
 
     return NextResponse.json({ 
