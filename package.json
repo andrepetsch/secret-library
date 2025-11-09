@@ -10,12 +10,14 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^2.0.64",
     "@auth/prisma-adapter": "^2.11.1",
     "@prisma/client": "^6.19.0",
     "@types/nodemailer": "^7.0.3",
     "@types/react-pdf": "^6.2.0",
     "@vercel/analytics": "^1.5.0",
     "@vercel/blob": "^2.0.0",
+    "ai": "^5.0.89",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
     "epubjs": "^0.3.93",

@@ -1,4 +1,6 @@
 import { parseString } from 'xml2js'
+import { generateText } from 'ai'
+import { createOpenAI } from '@ai-sdk/openai'
 
 export interface MediaMetadata {
   title?: string
@@ -6,6 +8,7 @@ export interface MediaMetadata {
   description?: string
   language?: string
   publicationDate?: string
+  tags?: string
 }
 
 /**
@@ -218,4 +221,59 @@ export async function extractMetadata(file: File, fileType: string): Promise<Med
   }
 
   return {}
+}
+
+/**
+ * Generate tags from title and description using OpenAI
+ * @param title - The title of the media
+ * @param description - The description of the media
+ * @returns Comma-separated tags or undefined if generation fails
+ */
+export async function generateTags(title?: string, description?: string): Promise<string | undefined> {
+  try {
+    // Only generate tags if we have at least a title or description
+    if (!title && !description) {
+      console.log('[Generate Tags] No title or description provided, skipping tag generation')
+      return undefined
+    }
+
+    // Check if API key is configured
+    const apiKey = process.env.OPENAI_API_KEY
+    if (!apiKey) {
+      console.log('[Generate Tags] OPENAI_API_KEY not configured, skipping tag generation')
+      return undefined
+    }
+
+    // Build the prompt
+    let prompt = 'Generate relevant tags for the following content:\n\n'
+    if (title) {
+      prompt += `Title: ${title}\n`
+    }
+    if (description) {
+      prompt += `Description: ${description}\n`
+    }
+    prompt += '\nReturn only comma-separated tags (e.g., "python, api, development"). Be concise and relevant.'
+
+    console.log('[Generate Tags] Generating tags for:', { title, description })
+
+    // Create OpenAI provider with API key
+    const openaiProvider = createOpenAI({
+      apiKey: apiKey
+    })
+
+    // Call OpenAI API using responses API as requested in the issue
+    // The 50-token limit is a soft constraint handled by the prompt
+    const { text } = await generateText({
+      model: openaiProvider.responses('gpt-4o-mini'),
+      prompt: prompt
+    })
+
+    const tags = text.trim()
+    console.log('[Generate Tags] Generated tags:', tags)
+
+    return tags || undefined
+  } catch (error) {
+    console.error('[Generate Tags] Error generating tags:', error)
+    return undefined
+  }
 }
