@@ -145,16 +145,18 @@ function UploadForm() {
       })
 
       console.log('Upload successful:', blob.url)
+      console.log('Download URL:', blob.downloadUrl)
       
       // Create media record in database after upload completes
       // This is more reliable than relying on the onUploadCompleted webhook
+      // Use downloadUrl instead of url for proper CORS and content-type headers
       const createMediaResponse = await fetch('/api/media/create-from-blob', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          blobUrl: blob.url,
+          blobUrl: blob.downloadUrl,
           contentType: blob.contentType,
           ...metadata
         }),

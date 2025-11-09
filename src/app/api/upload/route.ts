@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
       onUploadCompleted: async ({ blob, tokenPayload }) => {
         try {
           console.log('[Upload] onUploadCompleted called for:', blob.url)
+          console.log('[Upload] Download URL:', blob.downloadUrl)
           
           // Parse the token payload to get user ID and metadata
           const payload = tokenPayload ? JSON.parse(tokenPayload) : {}
@@ -74,6 +75,9 @@ export async function POST(req: NextRequest) {
           const fileType = blob.contentType === 'application/epub+zip' ? 'epub' : 'pdf'
 
           console.log('[Upload] File type determined:', fileType)
+
+          // Use downloadUrl instead of url for proper CORS and content-type headers
+          const fileUrl = blob.downloadUrl
 
           // Check if this is adding to existing media or creating new media
           if (metadata.mediaId) {
@@ -106,7 +110,7 @@ export async function POST(req: NextRequest) {
             await prisma.mediaFile.create({
               data: {
                 mediaId: metadata.mediaId,
-                fileUrl: blob.url,
+                fileUrl: fileUrl,
                 fileType: fileType
               }
             })
@@ -118,7 +122,7 @@ export async function POST(req: NextRequest) {
             // Check if a media file with this blob URL already exists
             // This prevents duplicates if both webhook and explicit API call execute
             const existingFile = await prisma.mediaFile.findFirst({
-              where: { fileUrl: blob.url }
+              where: { fileUrl: fileUrl }
             })
             
             if (existingFile) {
@@ -142,7 +146,7 @@ export async function POST(req: NextRequest) {
                 uploadedBy: userId,
                 files: {
                   create: {
-                    fileUrl: blob.url,
+                    fileUrl: fileUrl,
                     fileType: fileType
                   }
                 }
