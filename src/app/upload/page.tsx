@@ -156,6 +156,26 @@ function UploadForm() {
       })
 
       console.log('Upload successful:', blob.url)
+      
+      // Create media record in database after upload completes
+      // This is more reliable than relying on the onUploadCompleted webhook
+      const createMediaResponse = await fetch('/api/media/create-from-blob', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          blobUrl: blob.url,
+          contentType: blob.contentType,
+          ...metadata
+        }),
+      })
+
+      if (!createMediaResponse.ok) {
+        const errorData = await createMediaResponse.json()
+        throw new Error(errorData.error || 'Failed to create media record')
+      }
+
       router.push('/library')
     } catch (error) {
       console.error('Upload error:', error)
