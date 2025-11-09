@@ -2,10 +2,21 @@
 
 import { useEffect, useRef, useState } from 'react'
 import ePub from 'epubjs'
+import { useTheme } from '@/contexts/ThemeContext'
+
+interface EpubRendition {
+  prev: () => void
+  next: () => void
+  destroy: () => void
+  themes: {
+    default: (styles: Record<string, Record<string, string>>) => void
+  }
+}
 
 export default function EpubReader({ url }: { url: string }) {
   const viewerRef = useRef<HTMLDivElement>(null)
-  const [rendition, setRendition] = useState<{ prev: () => void; next: () => void; destroy: () => void } | null>(null)
+  const [rendition, setRendition] = useState<EpubRendition | null>(null)
+  const { theme } = useTheme()
 
   useEffect(() => {
     if (!viewerRef.current || !url) return
@@ -17,6 +28,44 @@ export default function EpubReader({ url }: { url: string }) {
       spread: 'none',
     })
 
+    // Apply theme-based styling to the epub content
+    const applyTheme = () => {
+      if (theme === 'dark') {
+        newRendition.themes.default({
+          'body': {
+            'background-color': '#1f2937 !important',
+            'color': '#e5e7eb !important'
+          },
+          'p': {
+            'color': '#e5e7eb !important'
+          },
+          'h1, h2, h3, h4, h5, h6': {
+            'color': '#f3f4f6 !important'
+          },
+          'a': {
+            'color': '#60a5fa !important'
+          }
+        })
+      } else {
+        newRendition.themes.default({
+          'body': {
+            'background-color': '#ffffff !important',
+            'color': '#1f2937 !important'
+          },
+          'p': {
+            'color': '#1f2937 !important'
+          },
+          'h1, h2, h3, h4, h5, h6': {
+            'color': '#111827 !important'
+          },
+          'a': {
+            'color': '#2563eb !important'
+          }
+        })
+      }
+    }
+
+    applyTheme()
     newRendition.display()
     setRendition(newRendition)
 
@@ -34,7 +83,7 @@ export default function EpubReader({ url }: { url: string }) {
       document.removeEventListener('keydown', handleKeyPress)
       newRendition.destroy()
     }
-  }, [url])
+  }, [url, theme])
 
   const handlePrev = () => {
     if (rendition) rendition.prev()
