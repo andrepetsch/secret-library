@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { upload } from '@vercel/blob/client'
+import { extractMetadataClient } from '@/lib/metadata-client'
 
 interface Media {
   id: string
@@ -76,36 +77,22 @@ function UploadForm() {
       return
     }
 
-    // Extract metadata from the file
+    // Extract metadata from the file (client-side)
     setExtracting(true)
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-
-      const response = await fetch('/api/media/extract-metadata', {
-        method: 'POST',
-        body: formData,
+      const metadata = await extractMetadataClient(file)
+      console.log('[Upload] Extracted metadata client-side:', metadata)
+      setExtractedMetadata(metadata)
+      
+      // Pre-fill form with extracted metadata
+      setFormValues({
+        title: metadata.title || '',
+        author: metadata.author || '',
+        description: metadata.description || '',
+        language: metadata.language || '',
+        publicationDate: metadata.publicationDate || '',
+        mediaType: 'Book'
       })
-
-      if (response.ok) {
-        const data = await response.json()
-        console.log('[Upload] Extracted metadata:', data.metadata)
-        setExtractedMetadata(data.metadata)
-        
-        // Pre-fill form with extracted metadata
-        setFormValues({
-          title: data.metadata.title || '',
-          author: data.metadata.author || '',
-          description: data.metadata.description || '',
-          language: data.metadata.language || '',
-          publicationDate: data.metadata.publicationDate || '',
-          mediaType: 'Book'
-        })
-      } else {
-        const errorText = await response.text()
-        console.error('Failed to extract metadata:', response.status, errorText)
-        // Don't show error to user, just continue with empty form
-      }
     } catch (error) {
       console.error('Error extracting metadata:', error)
       // Don't show error to user, just continue with empty form
