@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { upload } from '@vercel/blob/client'
 
 interface Media {
   id: string
@@ -121,49 +122,44 @@ function UploadForm() {
     setUploading(true)
     setError('')
 
-    const formData = new FormData()
-    
     if (!selectedFile) {
       setError('Please select a file')
       setUploading(false)
       return
     }
 
-    formData.append('file', selectedFile)
-    
-    // Add mediaId if adding to existing media
-    if (isAddingToExisting && existingMedia) {
-      formData.append('mediaId', existingMedia.id)
-    } else {
-      // Add all metadata fields for new media
-      formData.append('title', formValues.title)
-      formData.append('author', formValues.author)
-      formData.append('description', formValues.description)
-      formData.append('language', formValues.language)
-      formData.append('publicationDate', formValues.publicationDate)
-      formData.append('mediaType', formValues.mediaType)
-      
-      const tagsInput = (document.getElementById('tags') as HTMLInputElement)?.value
-      if (tagsInput) {
-        formData.append('tags', tagsInput)
-      }
-    }
-
     try {
-      const response = await fetch('/api/media', {
-        method: 'POST',
-        body: formData,
+      // Prepare metadata payload
+      const metadata: Record<string, string> = {}
+      
+      if (isAddingToExisting && existingMedia) {
+        metadata.mediaId = existingMedia.id
+      } else {
+        metadata.title = formValues.title
+        metadata.author = formValues.author
+        metadata.description = formValues.description
+        metadata.language = formValues.language
+        metadata.publicationDate = formValues.publicationDate
+        metadata.mediaType = formValues.mediaType
+        
+        const tagsInput = (document.getElementById('tags') as HTMLInputElement)?.value
+        if (tagsInput) {
+          metadata.tags = tagsInput
+        }
+      }
+
+      // Upload directly to Vercel Blob using client-side upload
+      const blob = await upload(selectedFile.name, selectedFile, {
+        access: 'public',
+        handleUploadUrl: '/api/upload',
+        clientPayload: JSON.stringify(metadata),
       })
 
-      if (response.ok) {
-        router.push('/library')
-      } else {
-        const data = await response.json()
-        setError(data.error || 'Failed to upload media')
-      }
+      console.log('Upload successful:', blob.url)
+      router.push('/library')
     } catch (error) {
       console.error('Upload error:', error)
-      setError('Failed to upload media')
+      setError(error instanceof Error ? error.message : 'Failed to upload media')
     } finally {
       setUploading(false)
     }
