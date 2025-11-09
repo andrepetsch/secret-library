@@ -19,6 +19,7 @@ interface ExtractedMetadata {
   description?: string
   language?: string
   publicationDate?: string
+  tags?: string
 }
 
 function UploadForm() {
@@ -77,25 +78,77 @@ function UploadForm() {
       return
     }
 
-    // Extract metadata from the file (client-side)
+    // Extract metadata from the file
     setExtracting(true)
     try {
-      const metadata = await extractMetadataClient(file)
-      console.log('[Upload] Extracted metadata client-side:', metadata)
-      setExtractedMetadata(metadata)
+      // Call server-side endpoint to extract metadata and generate tags
+      const formData = new FormData()
+      formData.append('file', file)
       
-      // Pre-fill form with extracted metadata
-      setFormValues({
-        title: metadata.title || '',
-        author: metadata.author || '',
-        description: metadata.description || '',
-        language: metadata.language || '',
-        publicationDate: metadata.publicationDate || '',
-        mediaType: 'Book'
+      const response = await fetch('/api/media/extract-metadata', {
+        method: 'POST',
+        body: formData,
       })
+      
+      if (response.ok) {
+        const data = await response.json()
+        const metadata = data.metadata
+        console.log('[Upload] Extracted metadata from server:', metadata)
+        setExtractedMetadata(metadata)
+        
+        // Pre-fill form with extracted metadata
+        setFormValues({
+          title: metadata.title || '',
+          author: metadata.author || '',
+          description: metadata.description || '',
+          language: metadata.language || '',
+          publicationDate: metadata.publicationDate || '',
+          mediaType: 'Book'
+        })
+        
+        // Pre-fill tags field if tags were generated
+        if (metadata.tags) {
+          const tagsInput = document.getElementById('tags') as HTMLInputElement
+          if (tagsInput) {
+            tagsInput.value = metadata.tags
+          }
+        }
+      } else {
+        console.error('Failed to extract metadata from server')
+        // Fallback to client-side extraction (without tags)
+        const metadata = await extractMetadataClient(file)
+        console.log('[Upload] Extracted metadata client-side (fallback):', metadata)
+        setExtractedMetadata(metadata)
+        
+        setFormValues({
+          title: metadata.title || '',
+          author: metadata.author || '',
+          description: metadata.description || '',
+          language: metadata.language || '',
+          publicationDate: metadata.publicationDate || '',
+          mediaType: 'Book'
+        })
+      }
     } catch (error) {
       console.error('Error extracting metadata:', error)
-      // Don't show error to user, just continue with empty form
+      // Fallback to client-side extraction (without tags)
+      try {
+        const metadata = await extractMetadataClient(file)
+        console.log('[Upload] Extracted metadata client-side (fallback):', metadata)
+        setExtractedMetadata(metadata)
+        
+        setFormValues({
+          title: metadata.title || '',
+          author: metadata.author || '',
+          description: metadata.description || '',
+          language: metadata.language || '',
+          publicationDate: metadata.publicationDate || '',
+          mediaType: 'Book'
+        })
+      } catch (fallbackError) {
+        console.error('Error in fallback metadata extraction:', fallbackError)
+        // Don't show error to user, just continue with empty form
+      }
     } finally {
       setExtracting(false)
     }
@@ -209,14 +262,18 @@ function UploadForm() {
 
         {extracting && (
           <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 rounded">
-            Extracting metadata from file...
+            Extracting metadata and generating tags...
           </div>
         )}
 
         {extractedMetadata && !isAddingToExisting && (
           <div className="mb-4 p-4 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 rounded">
             <p className="font-medium">Metadata extracted successfully!</p>
-            <p className="text-sm mt-1">You can review and edit the information below before uploading.</p>
+            <p className="text-sm mt-1">
+              {extractedMetadata.tags 
+                ? 'Auto-generated tags and metadata are ready. You can review and edit them below.'
+                : 'You can review and edit the information below before uploading.'}
+            </p>
           </div>
         )}
 
@@ -337,13 +394,13 @@ function UploadForm() {
 
               <div>
                 <label htmlFor="tags" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Tags (comma-separated)
+                  Tags (auto-generated, editable)
                 </label>
                 <input
                   type="text"
                   id="tags"
                   name="tags"
-                  placeholder="fiction, science-fiction, fantasy"
+                  placeholder="Auto-generated tags will appear here"
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                 />
               </div>
