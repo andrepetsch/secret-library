@@ -22,8 +22,14 @@ export async function POST(req: NextRequest) {
     const mediaType = formData.get('mediaType') as string | null
     const mediaId = formData.get('mediaId') as string | null // Optional: add to existing media
 
-    if (!file || !title) {
-      return NextResponse.json({ error: 'File and title are required' }, { status: 400 })
+    // Validate required fields based on operation type
+    if (!file) {
+      return NextResponse.json({ error: 'File is required' }, { status: 400 })
+    }
+    
+    // Title is only required when creating new media (not when adding to existing)
+    if (!mediaId && !title) {
+      return NextResponse.json({ error: 'Title is required' }, { status: 400 })
     }
 
     // Validate media type
