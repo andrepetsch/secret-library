@@ -78,77 +78,66 @@ function UploadForm() {
       return
     }
 
-    // Extract metadata from the file
+    // Extract metadata from the file (client-side)
     setExtracting(true)
     try {
-      // Call server-side endpoint to extract metadata and generate tags
-      const formData = new FormData()
-      formData.append('file', file)
+      const metadata = await extractMetadataClient(file)
+      console.log('[Upload] Extracted metadata client-side:', metadata)
       
-      const response = await fetch('/api/media/extract-metadata', {
-        method: 'POST',
-        body: formData,
+      // Generate tags from title and description (server-side API call)
+      if (metadata.title || metadata.description) {
+        try {
+          console.log('[Upload] Requesting tag generation from server...')
+          const tagsResponse = await fetch('/api/tags/generate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              title: metadata.title,
+              description: metadata.description,
+            }),
+          })
+          
+          if (tagsResponse.ok) {
+            const tagsData = await tagsResponse.json()
+            if (tagsData.tags) {
+              metadata.tags = tagsData.tags
+              console.log('[Upload] Generated tags:', tagsData.tags)
+            } else {
+              console.log('[Upload] No tags were generated')
+            }
+          } else {
+            console.error('[Upload] Failed to generate tags:', await tagsResponse.text())
+          }
+        } catch (tagError) {
+          console.error('[Upload] Error generating tags:', tagError)
+          // Continue without tags - not a fatal error
+        }
+      }
+      
+      setExtractedMetadata(metadata)
+      
+      // Pre-fill form with extracted metadata
+      setFormValues({
+        title: metadata.title || '',
+        author: metadata.author || '',
+        description: metadata.description || '',
+        language: metadata.language || '',
+        publicationDate: metadata.publicationDate || '',
+        mediaType: 'Book'
       })
       
-      if (response.ok) {
-        const data = await response.json()
-        const metadata = data.metadata
-        console.log('[Upload] Extracted metadata from server:', metadata)
-        setExtractedMetadata(metadata)
-        
-        // Pre-fill form with extracted metadata
-        setFormValues({
-          title: metadata.title || '',
-          author: metadata.author || '',
-          description: metadata.description || '',
-          language: metadata.language || '',
-          publicationDate: metadata.publicationDate || '',
-          mediaType: 'Book'
-        })
-        
-        // Pre-fill tags field if tags were generated
-        if (metadata.tags) {
-          const tagsInput = document.getElementById('tags') as HTMLInputElement
-          if (tagsInput) {
-            tagsInput.value = metadata.tags
-          }
+      // Pre-fill tags field if tags were generated
+      if (metadata.tags) {
+        const tagsInput = document.getElementById('tags') as HTMLInputElement
+        if (tagsInput) {
+          tagsInput.value = metadata.tags
         }
-      } else {
-        console.error('Failed to extract metadata from server')
-        // Fallback to client-side extraction (without tags)
-        const metadata = await extractMetadataClient(file)
-        console.log('[Upload] Extracted metadata client-side (fallback):', metadata)
-        setExtractedMetadata(metadata)
-        
-        setFormValues({
-          title: metadata.title || '',
-          author: metadata.author || '',
-          description: metadata.description || '',
-          language: metadata.language || '',
-          publicationDate: metadata.publicationDate || '',
-          mediaType: 'Book'
-        })
       }
     } catch (error) {
       console.error('Error extracting metadata:', error)
-      // Fallback to client-side extraction (without tags)
-      try {
-        const metadata = await extractMetadataClient(file)
-        console.log('[Upload] Extracted metadata client-side (fallback):', metadata)
-        setExtractedMetadata(metadata)
-        
-        setFormValues({
-          title: metadata.title || '',
-          author: metadata.author || '',
-          description: metadata.description || '',
-          language: metadata.language || '',
-          publicationDate: metadata.publicationDate || '',
-          mediaType: 'Book'
-        })
-      } catch (fallbackError) {
-        console.error('Error in fallback metadata extraction:', fallbackError)
-        // Don't show error to user, just continue with empty form
-      }
+      // Don't show error to user, just continue with empty form
     } finally {
       setExtracting(false)
     }
