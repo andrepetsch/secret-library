@@ -262,10 +262,11 @@ export async function generateTags(title?: string, description?: string): Promis
     })
 
     // Call OpenAI API using responses API as requested in the issue
-    // The 50-token limit is a soft constraint handled by the prompt
+    // Limited to 50 tokens as specified in the requirements
     const { text } = await generateText({
       model: openaiProvider.responses('gpt-4o-mini'),
-      prompt: prompt
+      prompt: prompt,
+      maxOutputTokens: 50
     })
 
     const tags = text.trim()
