@@ -55,32 +55,64 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: `A ${fileType.toUpperCase()} file already exists for this media` }, { status: 400 })
       }
 
-      // Add file to existing media
-      await prisma.mediaFile.create({
-        data: {
-          mediaId: mediaId,
-          fileUrl: blobUrl,
-          fileType: fileType
-        }
-      })
+      // Check if this exact blob URL already exists (prevent duplicates)
+      const existingBlobFile = existingMedia.files.find((f: { fileUrl: string }) => f.fileUrl === blobUrl)
+      if (existingBlobFile) {
+        console.log('[Create from blob] File already exists, returning existing media')
+        media = existingMedia
+      } else {
+        // Add file to existing media
+        await prisma.mediaFile.create({
+          data: {
+            mediaId: mediaId,
+            fileUrl: blobUrl,
+            fileType: fileType
+          }
+        })
 
-      media = await prisma.media.findUnique({
-        where: { id: mediaId },
-        include: {
-          files: true,
-          tags: true,
-          user: {
-            select: {
-              name: true,
-              email: true,
+        media = await prisma.media.findUnique({
+          where: { id: mediaId },
+          include: {
+            files: true,
+            tags: true,
+            user: {
+              select: {
+                name: true,
+                email: true,
+              }
             }
           }
-        }
-      })
+        })
+      }
     } else {
       // Create new media record with file
       if (!title) {
         return NextResponse.json({ error: 'Title is required for new media' }, { status: 400 })
+      }
+
+      // Check if a media file with this blob URL already exists
+      // This prevents duplicates if both webhook and explicit API call execute
+      const existingFile = await prisma.mediaFile.findFirst({
+        where: { fileUrl: blobUrl },
+        include: {
+          media: {
+            include: {
+              files: true,
+              tags: true,
+              user: {
+                select: {
+                  name: true,
+                  email: true,
+                }
+              }
+            }
+          }
+        }
+      })
+      
+      if (existingFile) {
+        console.log('[Create from blob] Media already exists for this blob URL, returning existing media')
+        return NextResponse.json({ media: existingFile.media })
       }
 
       const allowedMediaTypes = ['Book', 'Magazine', 'Paper', 'Article']

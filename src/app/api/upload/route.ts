@@ -115,6 +115,17 @@ export async function POST(req: NextRequest) {
           } else {
             console.log('[Upload] Creating new media with file')
             
+            // Check if a media file with this blob URL already exists
+            // This prevents duplicates if both webhook and explicit API call execute
+            const existingFile = await prisma.mediaFile.findFirst({
+              where: { fileUrl: blob.url }
+            })
+            
+            if (existingFile) {
+              console.log('[Upload] Media file already exists for this blob URL, skipping creation')
+              return
+            }
+            
             // Create new media with file
             const validatedMediaType = ['Book', 'Magazine', 'Paper', 'Article'].includes(metadata.mediaType) 
               ? metadata.mediaType 
