@@ -38,14 +38,14 @@ export default function PdfReader({ url }: { url: string }) {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center h-full bg-gray-100 p-4">
-      <div className="bg-white shadow-lg max-h-[calc(100vh-12rem)] overflow-auto">
+    <div className="flex flex-col items-center justify-center h-full bg-gray-100 dark:bg-gray-900 p-4">
+      <div className="bg-white dark:bg-gray-800 shadow-lg max-h-[calc(100vh-12rem)] overflow-auto">
         <Document
           file={url}
           onLoadSuccess={onDocumentLoadSuccess}
           loading={
             <div className="flex items-center justify-center p-8">
-              <p className="text-gray-500">Loading PDF...</p>
+              <p className="text-gray-500 dark:text-gray-400">Loading PDF...</p>
             </div>
           }
         >
@@ -58,21 +58,21 @@ export default function PdfReader({ url }: { url: string }) {
         </Document>
       </div>
 
-      <div className="mt-4 flex items-center gap-4 bg-white px-6 py-3 rounded-lg shadow-lg">
+      <div className="mt-4 flex items-center gap-4 bg-white dark:bg-gray-800 px-6 py-3 rounded-lg shadow-lg">
         <button
           onClick={goToPrevPage}
           disabled={pageNumber <= 1}
-          className="px-4 py-2 bg-gray-800 text-white rounded hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Previous
         </button>
-        <span className="text-gray-700">
+        <span className="text-gray-700 dark:text-gray-300">
           Page {pageNumber} of {numPages}
         </span>
         <button
           onClick={goToNextPage}
           disabled={pageNumber >= numPages}
-          className="px-4 py-2 bg-gray-800 text-white rounded hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Next
         </button>
