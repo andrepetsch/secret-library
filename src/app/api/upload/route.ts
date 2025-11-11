@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
             }
 
             // Check if file type already exists
-            const existingFileType = existingMedia.files.find(f => f.fileType === fileType)
+            const existingFileType = existingMedia.files.find((f: { fileType: string }) => f.fileType === fileType)
             if (existingFileType) {
               console.error(`[Upload] A ${fileType.toUpperCase()} file already exists for this media`)
               return

@@ -6,6 +6,7 @@ export interface MediaMetadata {
   description?: string
   language?: string
   publicationDate?: string
+  tags?: string
 }
 
 /**

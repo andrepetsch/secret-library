@@ -19,6 +19,7 @@ interface ExtractedMetadata {
   description?: string
   language?: string
   publicationDate?: string
+  tags?: string
 }
 
 function UploadForm() {
@@ -82,6 +83,39 @@ function UploadForm() {
     try {
       const metadata = await extractMetadataClient(file)
       console.log('[Upload] Extracted metadata client-side:', metadata)
+      
+      // Generate tags from title and description (server-side API call)
+      if (metadata.title || metadata.description) {
+        try {
+          console.log('[Upload] Requesting tag generation from server...')
+          const tagsResponse = await fetch('/api/tags/generate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              title: metadata.title,
+              description: metadata.description,
+            }),
+          })
+          
+          if (tagsResponse.ok) {
+            const tagsData = await tagsResponse.json()
+            if (tagsData.tags) {
+              metadata.tags = tagsData.tags
+              console.log('[Upload] Generated tags:', tagsData.tags)
+            } else {
+              console.log('[Upload] No tags were generated')
+            }
+          } else {
+            console.error('[Upload] Failed to generate tags:', await tagsResponse.text())
+          }
+        } catch (tagError) {
+          console.error('[Upload] Error generating tags:', tagError)
+          // Continue without tags - not a fatal error
+        }
+      }
+      
       setExtractedMetadata(metadata)
       
       // Pre-fill form with extracted metadata
@@ -93,6 +127,14 @@ function UploadForm() {
         publicationDate: metadata.publicationDate || '',
         mediaType: 'Book'
       })
+      
+      // Pre-fill tags field if tags were generated
+      if (metadata.tags) {
+        const tagsInput = document.getElementById('tags') as HTMLInputElement
+        if (tagsInput) {
+          tagsInput.value = metadata.tags
+        }
+      }
     } catch (error) {
       console.error('Error extracting metadata:', error)
       // Don't show error to user, just continue with empty form
@@ -209,14 +251,18 @@ function UploadForm() {
 
         {extracting && (
           <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 rounded">
-            Extracting metadata from file...
+            Extracting metadata and generating tags...
           </div>
         )}
 
         {extractedMetadata && !isAddingToExisting && (
           <div className="mb-4 p-4 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 rounded">
             <p className="font-medium">Metadata extracted successfully!</p>
-            <p className="text-sm mt-1">You can review and edit the information below before uploading.</p>
+            <p className="text-sm mt-1">
+              {extractedMetadata.tags 
+                ? 'Auto-generated tags and metadata are ready. You can review and edit them below.'
+                : 'You can review and edit the information below before uploading.'}
+            </p>
           </div>
         )}
 
@@ -337,13 +383,13 @@ function UploadForm() {
 
               <div>
                 <label htmlFor="tags" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Tags (comma-separated)
+                  Tags (auto-generated, editable)
                 </label>
                 <input
                   type="text"
                   id="tags"
                   name="tags"
-                  placeholder="fiction, science-fiction, fantasy"
+                  placeholder="Auto-generated tags will appear here"
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                 />
               </div>
