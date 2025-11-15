@@ -28,6 +28,17 @@ export default function ReaderPage() {
   const [loading, setLoading] = useState(true)
   const [selectedFile, setSelectedFile] = useState<MediaFile | null>(null)
 
+  const handleDownload = () => {
+    if (!selectedFile || !media) return
+    
+    const link = document.createElement('a')
+    link.href = selectedFile.fileUrl
+    link.download = `${media.title}.${selectedFile.fileType}`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   useEffect(() => {
     const fetchMedia = async () => {
       try {
@@ -99,6 +110,12 @@ export default function ReaderPage() {
                   ))}
                 </select>
               )}
+              <button
+                onClick={handleDownload}
+                className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-md hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600"
+              >
+                Download {selectedFile.fileType.toUpperCase()}
+              </button>
               <ThemeToggle />
               <Link
                 href="/library"
@@ -113,9 +130,9 @@ export default function ReaderPage() {
 
       <div className="h-[calc(100vh-4rem)]">
         {selectedFile.fileType === 'epub' ? (
-          <EpubReader url={selectedFile.fileUrl} />
+          <EpubReader url={selectedFile.fileUrl} title={media.title} />
         ) : (
-          <PdfReader url={selectedFile.fileUrl} />
+          <PdfReader url={selectedFile.fileUrl} title={media.title} />
         )}
       </div>
     </div>

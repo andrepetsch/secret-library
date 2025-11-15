@@ -16,7 +16,7 @@ interface Media {
   mediaType: string
   uploadedAt: string
   uploadedBy: string
-  files: { id: string; fileType: string }[]
+  files: { id: string; fileType: string; fileUrl: string }[]
   tags: { id: string; name: string }[]
   user: { name: string | null; email: string | null }
 }
@@ -135,6 +135,16 @@ export default function Library() {
       console.error('Error deleting media:', error)
       alert('Failed to delete media')
     }
+  }
+
+  const handleDownload = (fileUrl: string, title: string, fileType: string) => {
+    // Create a temporary anchor element to trigger download
+    const link = document.createElement('a')
+    link.href = fileUrl
+    link.download = `${title}.${fileType}`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   const canEditMedia = (item: Media) => {
@@ -259,8 +269,36 @@ export default function Library() {
                   </div>
                 </Link>
                 
+                {/* Download buttons - available to all users */}
+                <div className="mt-4 flex gap-2 border-t dark:border-gray-700 pt-4">
+                  {item.files.length === 1 ? (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault()
+                        handleDownload(item.files[0].fileUrl, item.title, item.files[0].fileType)
+                      }}
+                      className="flex-1 px-3 py-1.5 text-sm font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-md border border-purple-600 dark:border-purple-400"
+                    >
+                      Download {item.files[0].fileType.toUpperCase()}
+                    </button>
+                  ) : (
+                    item.files.map((file) => (
+                      <button
+                        key={file.id}
+                        onClick={(e) => {
+                          e.preventDefault()
+                          handleDownload(file.fileUrl, item.title, file.fileType)
+                        }}
+                        className="flex-1 px-3 py-1.5 text-sm font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-md border border-purple-600 dark:border-purple-400"
+                      >
+                        Download {file.fileType.toUpperCase()}
+                      </button>
+                    ))
+                  )}
+                </div>
+                
                 {canEditMedia(item) && (
-                  <div className="mt-4 flex gap-2 border-t dark:border-gray-700 pt-4">
+                  <div className="mt-2 flex gap-2">
                     <button
                       onClick={(e) => {
                         e.preventDefault()
