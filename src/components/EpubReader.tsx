@@ -13,19 +13,10 @@ interface EpubRendition {
   }
 }
 
-export default function EpubReader({ url, title }: { url: string; title?: string }) {
+export default function EpubReader({ url }: { url: string }) {
   const viewerRef = useRef<HTMLDivElement>(null)
   const [rendition, setRendition] = useState<EpubRendition | null>(null)
   const { theme } = useTheme()
-
-  const handleDownload = () => {
-    const link = document.createElement('a')
-    link.href = url
-    link.download = title ? `${title}.epub` : 'book.epub'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
 
   useEffect(() => {
     if (!viewerRef.current || !url) return
@@ -114,12 +105,6 @@ export default function EpubReader({ url, title }: { url: string; title?: string
           className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 shadow-lg"
         >
           Previous
-        </button>
-        <button
-          onClick={handleDownload}
-          className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600 shadow-lg"
-        >
-          Download
         </button>
         <button
           onClick={handleNext}

@@ -8,19 +8,10 @@ import 'react-pdf/dist/Page/TextLayer.css'
 // Configure PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
 
-export default function PdfReader({ url, title }: { url: string; title?: string }) {
+export default function PdfReader({ url }: { url: string }) {
   const [numPages, setNumPages] = useState<number>(0)
   const [pageNumber, setPageNumber] = useState<number>(1)
   const [pageWidth, setPageWidth] = useState<number>(800)
-
-  const handleDownload = () => {
-    const link = document.createElement('a')
-    link.href = url
-    link.download = title ? `${title}.pdf` : 'document.pdf'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
 
   useEffect(() => {
     // Set page width based on window size
@@ -78,12 +69,6 @@ export default function PdfReader({ url, title }: { url: string; title?: string 
         <span className="text-gray-700 dark:text-gray-300">
           Page {pageNumber} of {numPages}
         </span>
-        <button
-          onClick={handleDownload}
-          className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600"
-        >
-          Download
-        </button>
         <button
           onClick={goToNextPage}
           disabled={pageNumber >= numPages}
