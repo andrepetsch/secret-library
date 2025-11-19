@@ -16,9 +16,10 @@ A shared library for EPUB and PDF files with invitation-only access.
 - ✅ Soft delete media with 7-day recovery period
 - ✅ Restore deleted media
 - ✅ Automatic permanent deletion after one week
+- ✅ Automatic PDF to EPUB conversion on upload
+- ✅ Manual conversion of existing PDFs to EPUB
 
 ### Future Features (SHOULD)
-- ⏳ Conversion PDF to EPUB
 - ✅ Tags for Topics
 
 ## Tech Stack
@@ -112,6 +113,8 @@ Then visit `http://localhost:3000/invite/first-user-token` and sign in.
 1. **Sign In**: Use the invitation link provided by an existing member
 2. **Browse Library**: View all uploaded books with search and filter capabilities
 3. **Upload Books**: Upload EPUB or PDF files with metadata and tags
+   - **PDF Auto-Conversion**: PDFs are automatically converted to EPUB format on upload
+   - Both PDF and EPUB versions are available for each uploaded PDF
 4. **Read Books**: Click on any book to open it in the integrated reader
 5. **Navigation**: Use arrow keys (EPUB) or buttons (PDF) to navigate through books
 6. **Edit Media**: Click "Edit" on your own media to update title, author, description, tags, or media type
@@ -124,8 +127,45 @@ Then visit `http://localhost:3000/invite/first-user-token` and sign in.
 1. **Create Invitations**: Go to the Invitations page to create new invitation links
 2. **Send Email Invitations**: When email configuration is set up, invitations will be automatically sent via email
 3. **Schedule Cleanup**: Set up automated cleanup of deleted media using Vercel Cron or external services (see [MEDIA_CLEANUP.md](MEDIA_CLEANUP.md))
-3. **Manual Sharing**: If email is not configured, copy invitation links and share them manually
-4. **Manage Invitations**: View active, expired, and used invitations
+4. **Manual Sharing**: If email is not configured, copy invitation links and share them manually
+5. **Manage Invitations**: View active, expired, and used invitations
+6. **Convert Existing PDFs**: Use the `/api/media/convert-pdf-to-epub` endpoint to convert previously uploaded PDFs
+   - Convert single PDF: `POST /api/media/convert-pdf-to-epub` with `{"mediaId": "media-id"}`
+   - Convert all PDFs: `POST /api/media/convert-pdf-to-epub` with `{"all": true}`
+
+## PDF to EPUB Conversion
+
+The Secret Library automatically converts uploaded PDF files to EPUB format for improved reading experience on e-readers and mobile devices.
+
+### How It Works
+
+1. **Automatic Conversion**: When you upload a PDF file, it's automatically converted to EPUB format in the background
+2. **Dual Format Storage**: Both the original PDF and the converted EPUB are stored and available
+3. **Metadata Preservation**: The conversion preserves metadata like title, author, description, and publication date
+4. **Format Selection**: Users can choose to read either the PDF or EPUB version of the same media item
+
+### Converting Existing PDFs
+
+For PDFs that were uploaded before this feature was implemented, you can convert them using the API:
+
+```bash
+# Convert a specific media item
+curl -X POST https://your-domain.com/api/media/convert-pdf-to-epub \
+  -H "Content-Type: application/json" \
+  -d '{"mediaId": "your-media-id"}'
+
+# Convert all PDFs that don't have EPUBs yet
+curl -X POST https://your-domain.com/api/media/convert-pdf-to-epub \
+  -H "Content-Type: application/json" \
+  -d '{"all": true}'
+```
+
+### Limitations
+
+- PDF text extraction capabilities are limited due to PDF format complexity
+- The converted EPUB contains page markers and basic structure
+- For best reading experience with complex PDFs, the original PDF format is recommended
+- Images and advanced formatting may not be preserved in the conversion
 
 ## Project Structure
 
@@ -137,7 +177,9 @@ secret-library/
 │   ├── app/
 │   │   ├── api/               # API routes
 │   │   │   ├── auth/          # NextAuth endpoints
-│   │   │   ├── books/         # Book management
+│   │   │   ├── media/         # Media management
+│   │   │   │   └── convert-pdf-to-epub/  # PDF to EPUB conversion endpoint
+│   │   │   ├── upload/        # File upload handler
 │   │   │   └── invitations/   # Invitation management
 │   │   ├── auth/              # Authentication pages
 │   │   ├── invite/            # Invitation acceptance
@@ -149,7 +191,9 @@ secret-library/
 │   │   └── PdfReader.tsx      # PDF reader component
 │   └── lib/
 │       ├── auth.ts            # NextAuth configuration
-│       └── prisma.ts          # Prisma client
+│       ├── prisma.ts          # Prisma client
+│       ├── metadata.ts        # Metadata extraction utilities
+│       └── pdf-to-epub.ts     # PDF to EPUB conversion utilities
 └── public/
 ```
 
