@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { handleUpload } from '@vercel/blob/client'
 import { prisma } from '@/lib/prisma'
+import { put } from '@vercel/blob'
+import { convertPdfToEpub } from '@/lib/pdf-to-epub'
 
 export async function POST(req: NextRequest) {
   try {
@@ -184,6 +186,50 @@ export async function POST(req: NextRequest) {
             }
 
             console.log('[Upload] Upload completed successfully')
+            
+            // If this is a PDF, automatically convert to EPUB
+            if (fileType === 'pdf') {
+              console.log('[Upload] PDF detected, starting automatic conversion to EPUB')
+              try {
+                // Fetch the PDF file
+                const pdfResponse = await fetch(fileUrl)
+                if (!pdfResponse.ok) {
+                  console.error('[Upload] Failed to fetch PDF for conversion:', pdfResponse.statusText)
+                } else {
+                  const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer())
+                  
+                  // Convert PDF to EPUB
+                  const epubBuffer = await convertPdfToEpub(pdfBuffer, {
+                    title: metadata.title,
+                    author: metadata.author,
+                    description: metadata.description,
+                    language: metadata.language,
+                    publicationDate: metadata.publicationDate
+                  })
+                  
+                  // Upload EPUB to blob storage
+                  const epubFilename = `${media.id}-converted.epub`
+                  const epubBlob = await put(epubFilename, epubBuffer, {
+                    access: 'public',
+                    contentType: 'application/epub+zip'
+                  })
+                  
+                  // Add EPUB file to media
+                  await prisma.mediaFile.create({
+                    data: {
+                      mediaId: media.id,
+                      fileUrl: epubBlob.downloadUrl,
+                      fileType: 'epub'
+                    }
+                  })
+                  
+                  console.log('[Upload] EPUB conversion completed and added to media')
+                }
+              } catch (conversionError) {
+                console.error('[Upload] Error converting PDF to EPUB:', conversionError)
+                // Continue even if conversion fails - the PDF is still available
+              }
+            }
           }
         } catch (error) {
           console.error('[Upload] Error in onUploadCompleted:', error)

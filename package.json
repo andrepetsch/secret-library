@@ -12,6 +12,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^2.0.64",
     "@auth/prisma-adapter": "^2.11.1",
+    "@lesjoursfr/html-to-epub": "^4.5.2",
     "@prisma/client": "^6.19.0",
     "@types/nodemailer": "^7.0.3",
     "@types/react-pdf": "^6.2.0",
