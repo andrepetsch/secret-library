@@ -249,12 +249,14 @@ export default function Library() {
       })
 
       if (response.ok) {
-        await fetchCollections()
-        // Update the selected collection if it's the one we just modified
+        const data = await response.json()
+        // Update collections state with the updated collection
+        setCollections(prev => prev.map(c => 
+          c.id === collectionId ? data.collection : c
+        ))
+        // Update selected collection if it's the one we just modified
         if (selectedCollection?.id === collectionId) {
-          const updatedCollections = await fetch('/api/collections').then(r => r.json())
-          const updated = updatedCollections.collections.find((c: Collection) => c.id === collectionId)
-          setSelectedCollection(updated || null)
+          setSelectedCollection(data.collection)
         }
       } else {
         const error = await response.json()

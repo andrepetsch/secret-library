@@ -36,11 +36,21 @@ export async function POST(
 
     // Verify media exists and is not deleted
     const media = await prisma.media.findUnique({
-      where: { id: mediaId }
+      where: { id: mediaId },
+      include: {
+        collections: {
+          where: { id }
+        }
+      }
     })
 
     if (!media || media.deletedAt) {
       return NextResponse.json({ error: 'Media not found' }, { status: 404 })
+    }
+
+    // Check if media is already in the collection
+    if (media.collections && media.collections.length > 0) {
+      return NextResponse.json({ error: 'Media is already in this collection' }, { status: 400 })
     }
 
     // Add media to collection
@@ -107,7 +117,12 @@ export async function DELETE(
 
     // Verify collection exists and belongs to user
     const collection = await prisma.collection.findUnique({
-      where: { id }
+      where: { id },
+      include: {
+        media: {
+          where: { id: mediaId }
+        }
+      }
     })
 
     if (!collection) {
@@ -116,6 +131,11 @@ export async function DELETE(
 
     if (collection.userId !== session.user.id) {
       return NextResponse.json({ error: 'Forbidden: You can only modify your own collections' }, { status: 403 })
+    }
+
+    // Check if media is actually in the collection
+    if (!collection.media || collection.media.length === 0) {
+      return NextResponse.json({ error: 'Media is not in this collection' }, { status: 400 })
     }
 
     // Remove media from collection
