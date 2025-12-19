@@ -57,6 +57,7 @@ export async function convertPdfToEpub(
       author,
       description,
       lang: language,
+      tempDir: tempDir, // Use /tmp for temporary files (required for serverless environments)
       content: [
         {
           title: 'Content',
