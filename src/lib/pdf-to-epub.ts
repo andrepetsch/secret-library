@@ -58,6 +58,28 @@ export async function convertPdfToEpub(
       description,
       lang: language,
       tempDir: tempDir, // Use /tmp for temporary files (required for serverless environments)
+      css: `
+        body {
+          font-family: Georgia, serif;
+          line-height: 1.6;
+          margin: 1em;
+        }
+        h1 {
+          font-size: 2em;
+          margin: 0.67em 0;
+        }
+        h2 {
+          font-size: 1.5em;
+          margin: 0.75em 0;
+        }
+        p {
+          margin: 1em 0;
+        }
+        .page {
+          page-break-after: always;
+          margin: 2em 0;
+        }
+      `, // Inline CSS to avoid template file dependency
       content: [
         {
           title: 'Content',
