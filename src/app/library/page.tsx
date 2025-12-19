@@ -47,6 +47,7 @@ export default function Library() {
   const [showCollectionModal, setShowCollectionModal] = useState(false)
   const [editingCollection, setEditingCollection] = useState<Collection | null>(null)
   const [addToCollectionMedia, setAddToCollectionMedia] = useState<Media | null>(null)
+  const [convertingMediaIds, setConvertingMediaIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetchCurrentUser()
@@ -166,6 +167,48 @@ export default function Library() {
     }
   }
 
+  const handleConvertPdfToEpub = async (id: string) => {
+    if (!confirm('Convert this PDF to EPUB format? This may take a moment.')) {
+      return
+    }
+
+    setConvertingMediaIds(prev => new Set(prev).add(id))
+
+    try {
+      const response = await fetch('/api/media/convert-pdf-to-epub', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ mediaId: id }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.results?.[0]?.success) {
+          alert('PDF successfully converted to EPUB!')
+          await fetchMedia()
+          await fetchCollections()
+        } else {
+          const errorMsg = data.results?.[0]?.error || 'Unknown error'
+          alert(`Error converting PDF: ${errorMsg}`)
+        }
+      } else {
+        const error = await response.json()
+        alert(`Error converting PDF: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Error converting PDF:', error)
+      alert('Failed to convert PDF to EPUB')
+    } finally {
+      setConvertingMediaIds(prev => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    }
+  }
+
   const handleCreateCollection = async (data: { name: string; description: string }) => {
     const response = await fetch('/api/collections', {
       method: 'POST',
@@ -280,6 +323,14 @@ export default function Library() {
 
   const canEditMedia = (item: Media) => {
     return currentUser?.id === item.uploadedBy
+  }
+
+  const hasOnlyPdf = (item: Media) => {
+    return item.files.length === 1 && item.files[0].fileType === 'pdf'
+  }
+
+  const isConverting = (id: string) => {
+    return convertingMediaIds.has(id)
   }
 
   // Get the media to display based on view mode
@@ -592,34 +643,50 @@ export default function Library() {
                 </div>
                 
                 {canEditMedia(item) && (
-                  <div className="mt-2 flex gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault()
-                        setEditingMedia(item)
-                      }}
-                      className="flex-1 px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md border border-blue-600 dark:border-blue-400"
-                    >
-                      Edit
-                    </button>
-                    {item.files.length < 2 && (
-                      <Link
-                        href={`/upload?mediaId=${item.id}`}
-                        className="flex-1 px-3 py-1.5 text-sm font-medium text-center text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-md border border-green-600 dark:border-green-400"
+                  <>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault()
+                          setEditingMedia(item)
+                        }}
+                        className="flex-1 px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md border border-blue-600 dark:border-blue-400"
                       >
-                        Add File
-                      </Link>
+                        Edit
+                      </button>
+                      {item.files.length < 2 && (
+                        <Link
+                          href={`/upload?mediaId=${item.id}`}
+                          className="flex-1 px-3 py-1.5 text-sm font-medium text-center text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-md border border-green-600 dark:border-green-400"
+                        >
+                          Add File
+                        </Link>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault()
+                          handleDelete(item.id)
+                        }}
+                        className="flex-1 px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md border border-red-600 dark:border-red-400"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                    {hasOnlyPdf(item) && (
+                      <div className="mt-2">
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault()
+                            handleConvertPdfToEpub(item.id)
+                          }}
+                          disabled={isConverting(item.id)}
+                          className="w-full px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed rounded-md border border-indigo-600 dark:border-indigo-400"
+                        >
+                          {isConverting(item.id) ? 'Converting...' : 'Convert to EPUB'}
+                        </button>
+                      </div>
                     )}
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault()
-                        handleDelete(item.id)
-                      }}
-                      className="flex-1 px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md border border-red-600 dark:border-red-400"
-                    >
-                      Delete
-                    </button>
-                  </div>
+                  </>
                 )}
               </div>
             ))}
