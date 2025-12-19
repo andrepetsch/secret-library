@@ -38,18 +38,19 @@ model Session {
 }
 
 model User {
-  id            String    @id @default(cuid())
+  id            String       @id @default(cuid())
   name          String?
-  email         String?   @unique
+  email         String?      @unique
   emailVerified DateTime?
   image         String?
   accounts      Account[]
   sessions      Session[]
   media         Media[]
-  createdAt     DateTime  @default(now())
+  collections   Collection[]
+  createdAt     DateTime     @default(now())
   invitedBy     String?
-  invitedById   User?     @relation("UserInvites", fields: [invitedBy], references: [id])
-  invitations   User[]    @relation("UserInvites")
+  invitedById   User?        @relation("UserInvites", fields: [invitedBy], references: [id])
+  invitations   User[]       @relation("UserInvites")
 }
 
 model VerificationToken {
@@ -71,7 +72,7 @@ model Invitation {
 }
 
 model Media {
-  id              String      @id @default(cuid())
+  id              String       @id @default(cuid())
   title           String
   author          String?
   publicationDate String?     // Publication date as string (can be year, month-year, or full date)
@@ -85,6 +86,7 @@ model Media {
   user            User        @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
   tags            Tag[]
   files           MediaFile[]
+  collections     Collection[]
 }
 
 model MediaFile {
@@ -100,4 +102,17 @@ model Tag {
   id    String @id @default(cuid())
   name  String @unique
   media Media[]
+}
+
+model Collection {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  media       Media[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([name, userId])
 }

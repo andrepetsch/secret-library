@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { signOut } from 'next-auth/react'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { EditMediaModal } from '@/components/EditMediaModal'
+import { CollectionModal, AddToCollectionModal } from '@/components/CollectionModal'
 
 interface Media {
   id: string
@@ -21,6 +22,14 @@ interface Media {
   user: { name: string | null; email: string | null }
 }
 
+interface Collection {
+  id: string
+  name: string
+  description: string | null
+  media: Media[]
+  _count: { media: number }
+}
+
 interface CurrentUser {
   id: string
 }
@@ -28,14 +37,21 @@ interface CurrentUser {
 export default function Library() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [media, setMedia] = useState<Media[]>([])
+  const [collections, setCollections] = useState<Collection[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('')
   const [editingMedia, setEditingMedia] = useState<Media | null>(null)
   const [showDeletedLink, setShowDeletedLink] = useState(false)
+  const [viewMode, setViewMode] = useState<'all' | 'collections'>('all')
+  const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null)
+  const [showCollectionModal, setShowCollectionModal] = useState(false)
+  const [editingCollection, setEditingCollection] = useState<Collection | null>(null)
+  const [addToCollectionMedia, setAddToCollectionMedia] = useState<Media | null>(null)
 
   useEffect(() => {
     fetchCurrentUser()
     fetchMedia()
+    fetchCollections()
     checkDeletedMedia()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -63,6 +79,18 @@ export default function Library() {
       console.error('Error fetching media:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchCollections = async () => {
+    try {
+      const response = await fetch('/api/collections')
+      if (response.ok) {
+        const data = await response.json()
+        setCollections(data.collections)
+      }
+    } catch (error) {
+      console.error('Error fetching collections:', error)
     }
   }
 
@@ -126,6 +154,7 @@ export default function Library() {
 
       if (response.ok) {
         await fetchMedia()
+        await fetchCollections()
         await checkDeletedMedia()
       } else {
         const error = await response.json()
@@ -134,6 +163,108 @@ export default function Library() {
     } catch (error) {
       console.error('Error deleting media:', error)
       alert('Failed to delete media')
+    }
+  }
+
+  const handleCreateCollection = async (data: { name: string; description: string }) => {
+    const response = await fetch('/api/collections', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to create collection')
+    }
+
+    await fetchCollections()
+  }
+
+  const handleEditCollection = async (data: { name: string; description: string }) => {
+    if (!editingCollection) return
+
+    const response = await fetch(`/api/collections/${editingCollection.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to update collection')
+    }
+
+    await fetchCollections()
+    setEditingCollection(null)
+  }
+
+  const handleDeleteCollection = async (collectionId: string) => {
+    if (!confirm('Are you sure you want to delete this collection? The media items will not be deleted.')) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/collections/${collectionId}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        await fetchCollections()
+        if (selectedCollection?.id === collectionId) {
+          setSelectedCollection(null)
+        }
+      } else {
+        const error = await response.json()
+        alert(`Error deleting collection: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Error deleting collection:', error)
+      alert('Failed to delete collection')
+    }
+  }
+
+  const handleAddToCollection = async (collectionId: string) => {
+    if (!addToCollectionMedia) return
+
+    const response = await fetch(`/api/collections/${collectionId}/media`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mediaId: addToCollectionMedia.id }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to add to collection')
+    }
+
+    await fetchCollections()
+    setAddToCollectionMedia(null)
+  }
+
+  const handleRemoveFromCollection = async (collectionId: string, mediaId: string) => {
+    try {
+      const response = await fetch(`/api/collections/${collectionId}/media?mediaId=${mediaId}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        // Update collections state with the updated collection
+        setCollections(prev => prev.map(c => 
+          c.id === collectionId ? data.collection : c
+        ))
+        // Update selected collection if it's the one we just modified
+        if (selectedCollection?.id === collectionId) {
+          setSelectedCollection(data.collection)
+        }
+      } else {
+        const error = await response.json()
+        alert(`Error removing from collection: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Error removing from collection:', error)
+      alert('Failed to remove from collection')
     }
   }
 
@@ -151,10 +282,29 @@ export default function Library() {
     return currentUser?.id === item.uploadedBy
   }
 
-  const filteredMedia = media.filter(item => 
-    item.title.toLowerCase().includes(filter.toLowerCase()) ||
-    item.author?.toLowerCase().includes(filter.toLowerCase()) ||
-    item.tags.some(tag => tag.name.toLowerCase().includes(filter.toLowerCase()))
+  // Get the media to display based on view mode
+  const getDisplayMedia = () => {
+    let mediaToShow: Media[]
+    
+    if (viewMode === 'collections' && selectedCollection) {
+      mediaToShow = selectedCollection.media
+    } else {
+      mediaToShow = media
+    }
+
+    // Apply filter
+    return mediaToShow.filter(item => 
+      item.title.toLowerCase().includes(filter.toLowerCase()) ||
+      item.author?.toLowerCase().includes(filter.toLowerCase()) ||
+      item.tags.some(tag => tag.name.toLowerCase().includes(filter.toLowerCase()))
+    )
+  }
+
+  const filteredMedia = getDisplayMedia()
+
+  // Filter collections by name
+  const filteredCollections = collections.filter(c =>
+    c.name.toLowerCase().includes(filter.toLowerCase())
   )
 
   return (
@@ -199,23 +349,142 @@ export default function Library() {
       </nav>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* View Mode Toggle */}
+        <div className="mb-6 flex flex-wrap items-center gap-4">
+          <div className="flex bg-gray-200 dark:bg-gray-700 rounded-lg p-1">
+            <button
+              onClick={() => {
+                setViewMode('all')
+                setSelectedCollection(null)
+              }}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                viewMode === 'all'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow'
+                  : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              All Media
+            </button>
+            <button
+              onClick={() => {
+                setViewMode('collections')
+                setSelectedCollection(null)
+              }}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                viewMode === 'collections'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow'
+                  : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              Collections
+            </button>
+          </div>
+          {viewMode === 'collections' && (
+            <button
+              onClick={() => setShowCollectionModal(true)}
+              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600"
+            >
+              + New Collection
+            </button>
+          )}
+        </div>
+
+        {/* Search Bar */}
         <div className="mb-6">
           <input
             type="text"
-            placeholder="Search by title, author, or tag..."
+            placeholder={viewMode === 'collections' && !selectedCollection 
+              ? "Search collections..." 
+              : "Search by title, author, or tag..."}
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
           />
         </div>
 
+        {/* Breadcrumb for collection view */}
+        {viewMode === 'collections' && selectedCollection && (
+          <div className="mb-6 flex items-center text-sm">
+            <button
+              onClick={() => setSelectedCollection(null)}
+              className="text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Collections
+            </button>
+            <span className="mx-2 text-gray-500">/</span>
+            <span className="text-gray-900 dark:text-white font-medium">
+              {selectedCollection.name}
+            </span>
+          </div>
+        )}
+
         {loading ? (
           <div className="text-center py-12">
-            <p className="text-gray-500 dark:text-gray-400">Loading media...</p>
+            <p className="text-gray-500 dark:text-gray-400">Loading...</p>
           </div>
+        ) : viewMode === 'collections' && !selectedCollection ? (
+          /* Collections Grid View */
+          filteredCollections.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500 dark:text-gray-400">
+                {collections.length === 0 
+                  ? "No collections yet. Create one to organize your media!"
+                  : "No collections match your search."}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredCollections.map((collection) => (
+                <div
+                  key={collection.id}
+                  className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow p-6 cursor-pointer"
+                  onClick={() => setSelectedCollection(collection)}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <svg className="w-5 h-5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                        </svg>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                          {collection.name}
+                        </h3>
+                      </div>
+                      {collection.description && (
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 line-clamp-2">
+                          {collection.description}
+                        </p>
+                      )}
+                      <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                        {collection._count.media} item{collection._count.media !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex gap-2 border-t dark:border-gray-700 pt-4" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => setEditingCollection(collection)}
+                      className="flex-1 px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md border border-blue-600 dark:border-blue-400"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeleteCollection(collection.id)}
+                      className="flex-1 px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md border border-red-600 dark:border-red-400"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
         ) : filteredMedia.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-500 dark:text-gray-400">No media found. Upload your first item!</p>
+            <p className="text-gray-500 dark:text-gray-400">
+              {selectedCollection 
+                ? "No media in this collection yet. Add some from the All Media view!"
+                : "No media found. Upload your first item!"}
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -296,6 +565,31 @@ export default function Library() {
                     ))
                   )}
                 </div>
+
+                {/* Collection and Edit actions */}
+                <div className="mt-2 flex gap-2">
+                  {selectedCollection ? (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault()
+                        handleRemoveFromCollection(selectedCollection.id, item.id)
+                      }}
+                      className="flex-1 px-3 py-1.5 text-sm font-medium text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-md border border-orange-600 dark:border-orange-400"
+                    >
+                      Remove from Collection
+                    </button>
+                  ) : (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setAddToCollectionMedia(item)
+                      }}
+                      className="flex-1 px-3 py-1.5 text-sm font-medium text-yellow-600 dark:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-md border border-yellow-600 dark:border-yellow-400"
+                    >
+                      Add to Collection
+                    </button>
+                  )}
+                </div>
                 
                 {canEditMedia(item) && (
                   <div className="mt-2 flex gap-2">
@@ -339,6 +633,39 @@ export default function Library() {
           isOpen={true}
           onClose={() => setEditingMedia(null)}
           onSave={handleEdit}
+        />
+      )}
+
+      {/* Collection Modals */}
+      <CollectionModal
+        isOpen={showCollectionModal}
+        onClose={() => setShowCollectionModal(false)}
+        onSave={handleCreateCollection}
+        mode="create"
+      />
+
+      {editingCollection && (
+        <CollectionModal
+          isOpen={true}
+          onClose={() => setEditingCollection(null)}
+          onSave={handleEditCollection}
+          collection={editingCollection}
+          mode="edit"
+        />
+      )}
+
+      {addToCollectionMedia && (
+        <AddToCollectionModal
+          isOpen={true}
+          onClose={() => setAddToCollectionMedia(null)}
+          collections={collections}
+          mediaId={addToCollectionMedia.id}
+          mediaTitle={addToCollectionMedia.title}
+          onAdd={handleAddToCollection}
+          onCreateNew={() => {
+            setAddToCollectionMedia(null)
+            setShowCollectionModal(true)
+          }}
         />
       )}
     </div>
