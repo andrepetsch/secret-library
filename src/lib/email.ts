@@ -17,6 +17,13 @@ export interface SendInvitationEmailParams {
   expiresAt: Date
 }
 
+export interface SendToKindleParams {
+  kindleEmail: string
+  bookTitle: string
+  fileBuffer: Buffer
+  fileName: string
+}
+
 /**
  * Creates an email transporter based on environment configuration
  */
@@ -117,6 +124,35 @@ Secret Library Team`,
     console.error('Error sending invitation email:', error)
     throw new Error('Failed to send invitation email')
   }
+}
+
+/**
+ * Sends an ebook file to a Kindle email address
+ */
+export async function sendToKindleEmail({
+  kindleEmail,
+  bookTitle,
+  fileBuffer,
+  fileName,
+}: SendToKindleParams): Promise<void> {
+  const transporter = createTransporter()
+  const from = process.env.EMAIL_FROM || 'noreply@secret-library.local'
+
+  const mailOptions = {
+    from,
+    to: kindleEmail,
+    subject: bookTitle,
+    text: `Please find the attached ebook: ${bookTitle}`,
+    attachments: [
+      {
+        filename: fileName,
+        content: fileBuffer,
+      },
+    ],
+  }
+
+  await transporter.sendMail(mailOptions)
+  console.log(`Ebook "${bookTitle}" sent to Kindle address ${kindleEmail}`)
 }
 
 /**
