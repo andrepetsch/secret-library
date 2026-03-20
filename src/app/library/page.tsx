@@ -20,6 +20,14 @@ interface Media {
   files: { id: string; fileType: string; fileUrl: string }[]
   tags: { id: string; name: string }[]
   user: { name: string | null; email: string | null }
+  readingProgress: {
+    fileId: string
+    percentComplete: number
+    currentPage: number | null
+    totalPages: number | null
+    currentLocation: string | null
+    updatedAt: string
+  }[]
 }
 
 interface Collection {
@@ -47,6 +55,7 @@ export default function Library() {
   const [showCollectionModal, setShowCollectionModal] = useState(false)
   const [editingCollection, setEditingCollection] = useState<Collection | null>(null)
   const [addToCollectionMedia, setAddToCollectionMedia] = useState<Media | null>(null)
+  const [progressFilter, setProgressFilter] = useState<'all' | 'not_started' | 'in_progress' | 'completed'>('all')
 
   useEffect(() => {
     fetchCurrentUser()
@@ -282,7 +291,15 @@ export default function Library() {
     return currentUser?.id === item.uploadedBy
   }
 
-  // Get the media to display based on view mode
+  // Get the best (highest) reading progress across all files for a media item.
+  // A media may have both EPUB and PDF files; we use the highest progress to
+  // reflect the furthest the user has read regardless of file type.
+  const getMediaProgress = (item: Media): number => {
+    if (!item.readingProgress || item.readingProgress.length === 0) return 0
+    return Math.max(...item.readingProgress.map(p => p.percentComplete))
+  }
+
+  // Get the display media based on view mode and filters
   const getDisplayMedia = () => {
     let mediaToShow: Media[]
     
@@ -293,11 +310,22 @@ export default function Library() {
     }
 
     // Apply filter
-    return mediaToShow.filter(item => 
-      item.title.toLowerCase().includes(filter.toLowerCase()) ||
-      item.author?.toLowerCase().includes(filter.toLowerCase()) ||
-      item.tags.some(tag => tag.name.toLowerCase().includes(filter.toLowerCase()))
-    )
+    return mediaToShow.filter(item => {
+      const matchesSearch = (
+        item.title.toLowerCase().includes(filter.toLowerCase()) ||
+        item.author?.toLowerCase().includes(filter.toLowerCase()) ||
+        item.tags.some(tag => tag.name.toLowerCase().includes(filter.toLowerCase()))
+      )
+
+      if (!matchesSearch) return false
+
+      if (progressFilter === 'all') return true
+      const progress = getMediaProgress(item)
+      if (progressFilter === 'not_started') return progress === 0
+      if (progressFilter === 'in_progress') return progress > 0 && progress < 100
+      if (progressFilter === 'completed') return progress >= 100
+      return true
+    })
   }
 
   const filteredMedia = getDisplayMedia()
@@ -390,7 +418,7 @@ export default function Library() {
         </div>
 
         {/* Search Bar */}
-        <div className="mb-6">
+        <div className="mb-6 flex flex-wrap gap-3 items-center">
           <input
             type="text"
             placeholder={viewMode === 'collections' && !selectedCollection 
@@ -398,8 +426,20 @@ export default function Library() {
               : "Search by title, author, or tag..."}
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+            className="flex-1 min-w-0 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
           />
+          {(viewMode === 'all' || selectedCollection) && (
+            <select
+              value={progressFilter}
+              onChange={(e) => setProgressFilter(e.target.value as typeof progressFilter)}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+            >
+              <option value="all">All</option>
+              <option value="not_started">Not Started</option>
+              <option value="in_progress">In Progress</option>
+              <option value="completed">Completed</option>
+            </select>
+          )}
         </div>
 
         {/* Breadcrumb for collection view */}
@@ -536,6 +576,26 @@ export default function Library() {
                   <div className="mt-4 text-xs text-gray-500 dark:text-gray-400">
                     Uploaded by {item.user.name || item.user.email}
                   </div>
+                  {(() => {
+                    const progress = getMediaProgress(item)
+                    if (progress === 0) return null
+                    return (
+                      <div className="mt-3">
+                        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+                          <span>{progress >= 100 ? '✓ Completed' : 'In progress'}</span>
+                          <span>{Math.min(progress, 100)}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                          <div
+                            className={`h-1.5 rounded-full transition-all duration-300 ${
+                              progress >= 100 ? 'bg-green-500' : 'bg-blue-500'
+                            }`}
+                            style={{ width: `${Math.min(progress, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </Link>
                 
                 {/* Download buttons - available to all users */}

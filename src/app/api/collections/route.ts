@@ -27,6 +27,19 @@ export async function GET() {
                 name: true,
                 email: true,
               }
+            },
+            readingProgress: {
+              where: {
+                userId: session.user.id,
+              },
+              select: {
+                fileId: true,
+                percentComplete: true,
+                currentPage: true,
+                totalPages: true,
+                currentLocation: true,
+                updatedAt: true,
+              }
             }
           }
         },

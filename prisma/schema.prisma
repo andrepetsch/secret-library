@@ -38,19 +38,20 @@ model Session {
 }
 
 model User {
-  id            String       @id @default(cuid())
-  name          String?
-  email         String?      @unique
-  emailVerified DateTime?
-  image         String?
-  accounts      Account[]
-  sessions      Session[]
-  media         Media[]
-  collections   Collection[]
-  createdAt     DateTime     @default(now())
-  invitedBy     String?
-  invitedById   User?        @relation("UserInvites", fields: [invitedBy], references: [id])
-  invitations   User[]       @relation("UserInvites")
+  id              String            @id @default(cuid())
+  name            String?
+  email           String?           @unique
+  emailVerified   DateTime?
+  image           String?
+  accounts        Account[]
+  sessions        Session[]
+  media           Media[]
+  collections     Collection[]
+  readingProgress ReadingProgress[]
+  createdAt       DateTime          @default(now())
+  invitedBy       String?
+  invitedById     User?             @relation("UserInvites", fields: [invitedBy], references: [id])
+  invitations     User[]            @relation("UserInvites")
 }
 
 model VerificationToken {
@@ -72,7 +73,7 @@ model Invitation {
 }
 
 model Media {
-  id              String       @id @default(cuid())
+  id              String            @id @default(cuid())
   title           String
   author          String?
   publicationDate String?     // Publication date as string (can be year, month-year, or full date)
@@ -87,6 +88,7 @@ model Media {
   tags            Tag[]
   files           MediaFile[]
   collections     Collection[]
+  readingProgress ReadingProgress[]
 }
 
 model MediaFile {
@@ -115,4 +117,20 @@ model Collection {
   updatedAt   DateTime @updatedAt
 
   @@unique([name, userId])
+}
+
+model ReadingProgress {
+  id              String   @id @default(cuid())
+  userId          String
+  mediaId         String
+  fileId          String
+  currentPage     Int?     // For PDFs: current page number
+  totalPages      Int?     // For PDFs: total pages
+  currentLocation String?  // For EPUBs: CFI location string
+  percentComplete Float    @default(0)
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  media           Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, fileId])
 }

@@ -130,9 +130,9 @@ export default function ReaderPage() {
 
       <div className="h-[calc(100vh-4rem)]">
         {selectedFile.fileType === 'epub' ? (
-          <EpubReader url={selectedFile.fileUrl} />
+          <EpubReader url={selectedFile.fileUrl} mediaId={media.id} fileId={selectedFile.id} />
         ) : (
-          <PdfReader url={selectedFile.fileUrl} />
+          <PdfReader url={selectedFile.fileUrl} mediaId={media.id} fileId={selectedFile.id} />
         )}
       </div>
     </div>

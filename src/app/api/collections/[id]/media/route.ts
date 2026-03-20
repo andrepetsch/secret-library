@@ -74,6 +74,19 @@ export async function POST(
                 name: true,
                 email: true,
               }
+            },
+            readingProgress: {
+              where: {
+                userId: session.user.id,
+              },
+              select: {
+                fileId: true,
+                percentComplete: true,
+                currentPage: true,
+                totalPages: true,
+                currentLocation: true,
+                updatedAt: true,
+              }
             }
           }
         },
@@ -158,6 +171,19 @@ export async function DELETE(
               select: {
                 name: true,
                 email: true,
+              }
+            },
+            readingProgress: {
+              where: {
+                userId: session.user.id,
+              },
+              select: {
+                fileId: true,
+                percentComplete: true,
+                currentPage: true,
+                totalPages: true,
+                currentLocation: true,
+                updatedAt: true,
               }
             }
           }
