@@ -38,7 +38,7 @@ export default function EpubReader({ url, mediaId, fileId }: EpubReaderProps) {
   const currentLocationRef = useRef<string | null>(null)
 
   const saveProgress = useCallback(
-    (cfi: string, percent: number) => {
+    (cfi: string, percentComplete: number) => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
       saveTimerRef.current = setTimeout(async () => {
         try {
@@ -48,7 +48,7 @@ export default function EpubReader({ url, mediaId, fileId }: EpubReaderProps) {
             body: JSON.stringify({
               fileId,
               currentLocation: cfi,
-              percentComplete: Math.round(percent * 100),
+              percentComplete,
             }),
           })
         } catch (error) {
@@ -134,6 +134,11 @@ export default function EpubReader({ url, mediaId, fileId }: EpubReaderProps) {
 
     applyTheme()
 
+    // Generate locations so that location.start.percentage is populated.
+    // Without this, percentageFromLocation() returns 0 for all pages because
+    // book.locations.total is 0.
+    book.ready.then(() => book.locations.generate(1024))
+
     // Resume from current position (handles theme toggle) or start from beginning.
     // fetchAndRestore (separate effect) sets currentLocationRef after the API call resolves,
     // then calls display() directly on renditionRef. This handles initial page restoration.
@@ -148,8 +153,11 @@ export default function EpubReader({ url, mediaId, fileId }: EpubReaderProps) {
     newRendition.on('relocated', (location: EpubLocation) => {
       const percent = location.start.percentage ?? 0
       currentLocationRef.current = location.start.cfi
-      setPercentComplete(Math.round(percent * 100))
-      saveProgress(location.start.cfi, percent)
+      // Ensure any navigation (including page 1) is stored as at least 1% so
+      // the book is classified as "in progress" rather than "not started".
+      const stored = Math.max(1, Math.round(percent * 100))
+      setPercentComplete(stored)
+      saveProgress(location.start.cfi, stored)
     })
 
     renditionRef.current = newRendition
