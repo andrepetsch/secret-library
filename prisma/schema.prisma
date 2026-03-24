@@ -109,6 +109,7 @@ model Collection {
   id          String   @id @default(cuid())
   name        String
   description String?
+  isPublic    Boolean  @default(false)
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   media       Media[]
