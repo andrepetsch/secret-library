@@ -6,13 +6,14 @@ interface Collection {
   id: string
   name: string
   description: string | null
+  isPublic: boolean
   _count: { media: number }
 }
 
 interface CollectionModalProps {
   isOpen: boolean
   onClose: () => void
-  onSave: (data: { name: string; description: string }) => Promise<void>
+  onSave: (data: { name: string; description: string; isPublic: boolean }) => Promise<void>
   collection?: Collection | null
   mode: 'create' | 'edit'
 }
@@ -20,6 +21,7 @@ interface CollectionModalProps {
 export function CollectionModal({ isOpen, onClose, onSave, collection, mode }: CollectionModalProps) {
   const [name, setName] = useState(collection?.name || '')
   const [description, setDescription] = useState(collection?.description || '')
+  const [isPublic, setIsPublic] = useState(collection?.isPublic ?? false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -34,7 +36,7 @@ export function CollectionModal({ isOpen, onClose, onSave, collection, mode }: C
 
     setSaving(true)
     try {
-      await onSave({ name: name.trim(), description: description.trim() })
+      await onSave({ name: name.trim(), description: description.trim(), isPublic })
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save collection')
@@ -96,6 +98,31 @@ export function CollectionModal({ isOpen, onClose, onSave, collection, mode }: C
                 placeholder="Optional description for this collection"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
+            </div>
+
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Visibility</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  {isPublic ? 'Everyone can see this collection' : 'Only you can see this collection'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPublic(!isPublic)}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                  isPublic ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+                role="switch"
+                aria-checked={isPublic}
+                aria-label="Toggle public visibility"
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                    isPublic ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
             </div>
 
             <div className="flex justify-end space-x-3 pt-4">
@@ -222,3 +249,4 @@ export function AddToCollectionModal({
     </div>
   )
 }
+
