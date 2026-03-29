@@ -340,47 +340,6 @@ export default function Library() {
     }))
   }
 
-  const canManageCollection = (collection: Collection) => {
-    return currentUser?.id === collection.userId
-  }
-
-  // Own collections only (for AddToCollectionModal)
-  const ownCollections = collections.filter(c => c.userId === currentUser?.id)
-
-  const handleSendToKindle = async (mediaId: string) => {
-    if (!currentUser?.kindleEmail) {
-      if (confirm('You have no Kindle email configured. Would you like to add one in Settings?')) {
-        setShowSettingsModal(true)
-      }
-      return
-    }
-
-    setSendingToKindle(mediaId)
-    try {
-      const response = await fetch(`/api/media/${mediaId}/send-to-kindle`, {
-        method: 'POST',
-      })
-      const data = await response.json()
-      if (response.ok) {
-        alert(data.message)
-      } else {
-        alert(`Error: ${data.error}`)
-      }
-    } catch (error) {
-      console.error('Error sending to Kindle:', error)
-      alert('Failed to send to Kindle')
-    } finally {
-      setSendingToKindle(null)
-    }
-  }
-
-  const handleSettingsSave = (settings: { name: string; kindleEmail: string }) => {
-    setCurrentUser((prev) => ({
-      id: prev?.id || '',
-      kindleEmail: settings.kindleEmail || null,
-    }))
-  }
-
   // Get the best (highest) reading progress across all files for a media item.
   // A media may have both EPUB and PDF files; we use the highest progress to
   // reflect the furthest the user has read regardless of file type.
