@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
-const collectionInclude = {
+const collectionInclude = (userId: string) => ({
   media: {
     where: {
       deletedAt: null
@@ -14,6 +14,19 @@ const collectionInclude = {
         select: {
           name: true,
           email: true,
+        }
+      },
+      readingProgress: {
+        where: {
+          userId,
+        },
+        select: {
+          fileId: true,
+          percentComplete: true,
+          currentPage: true,
+          totalPages: true,
+          currentLocation: true,
+          updatedAt: true,
         }
       }
     }
@@ -33,7 +46,7 @@ const collectionInclude = {
       }
     }
   }
-}
+})
 
 export async function GET() {
   try {
@@ -47,7 +60,7 @@ export async function GET() {
       where: {
         userId: session.user.id
       },
-      include: collectionInclude,
+      include: collectionInclude(session.user.id),
       orderBy: {
         name: 'asc'
       }
@@ -58,7 +71,7 @@ export async function GET() {
         isPublic: true,
         NOT: { userId: session.user.id }
       },
-      include: collectionInclude,
+      include: collectionInclude(session.user.id),
       orderBy: {
         name: 'asc'
       }
@@ -112,7 +125,7 @@ export async function POST(req: NextRequest) {
         isPublic: isPublic === true,
         userId: session.user.id
       },
-      include: collectionInclude
+      include: collectionInclude(session.user.id)
     })
 
     return NextResponse.json({ collection })

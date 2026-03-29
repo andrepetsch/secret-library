@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import ePub from 'epubjs'
 import { useTheme } from '@/contexts/ThemeContext'
 
@@ -8,15 +8,85 @@ interface EpubRendition {
   prev: () => void
   next: () => void
   destroy: () => void
+  display: (target?: string) => Promise<void>
+  on: (event: string, callback: (location: EpubLocation) => void) => void
   themes: {
     default: (styles: Record<string, Record<string, string>>) => void
   }
 }
 
-export default function EpubReader({ url }: { url: string }) {
+interface EpubLocation {
+  start: {
+    cfi: string
+    percentage: number
+  }
+}
+
+interface EpubReaderProps {
+  url: string
+  mediaId: string
+  fileId: string
+}
+
+export default function EpubReader({ url, mediaId, fileId }: EpubReaderProps) {
   const viewerRef = useRef<HTMLDivElement>(null)
-  const [rendition, setRendition] = useState<EpubRendition | null>(null)
+  const renditionRef = useRef<EpubRendition | null>(null)
+  const [percentComplete, setPercentComplete] = useState<number>(0)
+  // True only after the first display() resolves — prevents calling next()/prev() before
+  // epubjs has initialised its internal manager (which would throw "undefined reading 'next'").
+  const renditionReadyRef = useRef<boolean>(false)
   const { theme } = useTheme()
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Tracks current reading position so we can restore it on theme toggle
+  const currentLocationRef = useRef<string | null>(null)
+
+  const saveProgress = useCallback(
+    (cfi: string, percentComplete: number) => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = setTimeout(async () => {
+        try {
+          await fetch(`/api/media/${mediaId}/progress`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileId,
+              currentLocation: cfi,
+              percentComplete,
+            }),
+          })
+        } catch (error) {
+          console.error('Error saving reading progress:', error)
+        }
+      }, 1500)
+    },
+    [mediaId, fileId]
+  )
+
+  // Fetch saved progress and jump to it once the rendition is ready
+  useEffect(() => {
+    const fetchAndRestore = async () => {
+      try {
+        const response = await fetch(`/api/media/${mediaId}/progress`)
+        if (response.ok) {
+          const data = await response.json()
+          const fileProgress = data.progress?.find(
+            (p: { fileId: string; currentLocation: string | null; percentComplete: number }) =>
+              p.fileId === fileId
+          )
+          if (fileProgress) {
+            setPercentComplete(fileProgress.percentComplete)
+            if (fileProgress.currentLocation && renditionRef.current) {
+              currentLocationRef.current = fileProgress.currentLocation
+              renditionRef.current.display(fileProgress.currentLocation)
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching reading progress:', error)
+      }
+    }
+    fetchAndRestore()
+  }, [mediaId, fileId])
 
   useEffect(() => {
     if (!viewerRef.current || !url) return
@@ -66,10 +136,38 @@ export default function EpubReader({ url }: { url: string }) {
     }
 
     applyTheme()
-    newRendition.display()
-    setRendition(newRendition)
+
+    // Generate locations so that location.start.percentage is populated.
+    // Without this, percentageFromLocation() returns 0 for all pages because
+    // book.locations.total is 0.
+    book.ready.then(() => book.locations.generate(1024))
+
+    // Resume from current position (handles theme toggle) or start from beginning.
+    // fetchAndRestore (separate effect) sets currentLocationRef after the API call resolves,
+    // then calls display() directly on renditionRef. This handles initial page restoration.
+    // currentLocationRef is updated by the 'relocated' event during normal reading.
+    const displayPromise = currentLocationRef.current
+      ? newRendition.display(currentLocationRef.current)
+      : newRendition.display()
+    displayPromise.then(() => {
+      renditionReadyRef.current = true
+    })
+
+    // Track location changes
+    newRendition.on('relocated', (location: EpubLocation) => {
+      const percent = location.start.percentage ?? 0
+      currentLocationRef.current = location.start.cfi
+      // Ensure any navigation (including page 1) is stored as at least 1% so
+      // the book is classified as "in progress" rather than "not started".
+      const stored = Math.max(1, Math.round(percent * 100))
+      setPercentComplete(stored)
+      saveProgress(location.start.cfi, stored)
+    })
+
+    renditionRef.current = newRendition
 
     const handleKeyPress = (e: KeyboardEvent) => {
+      if (!renditionReadyRef.current) return
       if (e.key === 'ArrowRight') {
         newRendition.next()
       } else if (e.key === 'ArrowLeft') {
@@ -81,16 +179,22 @@ export default function EpubReader({ url }: { url: string }) {
 
     return () => {
       document.removeEventListener('keydown', handleKeyPress)
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      renditionReadyRef.current = false
+      renditionRef.current = null
       newRendition.destroy()
     }
+  // saveProgress is stable across re-renders when url/fileId don't change.
+  // url and theme are the only values that should trigger a full re-render of the book.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url, theme])
 
   const handlePrev = () => {
-    if (rendition) rendition.prev()
+    if (renditionRef.current && renditionReadyRef.current) renditionRef.current.prev()
   }
 
   const handleNext = () => {
-    if (rendition) rendition.next()
+    if (renditionRef.current && renditionReadyRef.current) renditionRef.current.next()
   }
 
   return (
@@ -99,19 +203,32 @@ export default function EpubReader({ url }: { url: string }) {
         <div ref={viewerRef} className="w-full h-[calc(100%-6rem)]" />
       </div>
       
-      <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex gap-4 z-10">
-        <button
-          onClick={handlePrev}
-          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 shadow-lg"
-        >
-          Previous
-        </button>
-        <button
-          onClick={handleNext}
-          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 shadow-lg"
-        >
-          Next
-        </button>
+      <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-3 z-10">
+        {percentComplete > 0 && (
+          <div className="flex items-center gap-2 bg-gray-800/80 text-white px-4 py-1.5 rounded-full text-sm">
+            <div className="w-24 bg-gray-600 rounded-full h-1.5">
+              <div
+                className="bg-blue-400 h-1.5 rounded-full transition-all duration-300"
+                style={{ width: `${percentComplete}%` }}
+              />
+            </div>
+            <span>{percentComplete}%</span>
+          </div>
+        )}
+        <div className="flex gap-4">
+          <button
+            onClick={handlePrev}
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 shadow-lg"
+          >
+            Previous
+          </button>
+          <button
+            onClick={handleNext}
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 shadow-lg"
+          >
+            Next
+          </button>
+        </div>
       </div>
     </div>
   )
