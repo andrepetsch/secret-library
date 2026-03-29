@@ -32,6 +32,9 @@ export default function EpubReader({ url, mediaId, fileId }: EpubReaderProps) {
   const viewerRef = useRef<HTMLDivElement>(null)
   const renditionRef = useRef<EpubRendition | null>(null)
   const [percentComplete, setPercentComplete] = useState<number>(0)
+  // True only after the first display() resolves — prevents calling next()/prev() before
+  // epubjs has initialised its internal manager (which would throw "undefined reading 'next'").
+  const renditionReadyRef = useRef<boolean>(false)
   const { theme } = useTheme()
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Tracks current reading position so we can restore it on theme toggle
@@ -143,11 +146,12 @@ export default function EpubReader({ url, mediaId, fileId }: EpubReaderProps) {
     // fetchAndRestore (separate effect) sets currentLocationRef after the API call resolves,
     // then calls display() directly on renditionRef. This handles initial page restoration.
     // currentLocationRef is updated by the 'relocated' event during normal reading.
-    if (currentLocationRef.current) {
-      newRendition.display(currentLocationRef.current)
-    } else {
-      newRendition.display()
-    }
+    const displayPromise = currentLocationRef.current
+      ? newRendition.display(currentLocationRef.current)
+      : newRendition.display()
+    displayPromise.then(() => {
+      renditionReadyRef.current = true
+    })
 
     // Track location changes
     newRendition.on('relocated', (location: EpubLocation) => {
@@ -163,6 +167,7 @@ export default function EpubReader({ url, mediaId, fileId }: EpubReaderProps) {
     renditionRef.current = newRendition
 
     const handleKeyPress = (e: KeyboardEvent) => {
+      if (!renditionReadyRef.current) return
       if (e.key === 'ArrowRight') {
         newRendition.next()
       } else if (e.key === 'ArrowLeft') {
@@ -175,6 +180,7 @@ export default function EpubReader({ url, mediaId, fileId }: EpubReaderProps) {
     return () => {
       document.removeEventListener('keydown', handleKeyPress)
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      renditionReadyRef.current = false
       renditionRef.current = null
       newRendition.destroy()
     }
@@ -184,11 +190,11 @@ export default function EpubReader({ url, mediaId, fileId }: EpubReaderProps) {
   }, [url, theme])
 
   const handlePrev = () => {
-    if (renditionRef.current) renditionRef.current.prev()
+    if (renditionRef.current && renditionReadyRef.current) renditionRef.current.prev()
   }
 
   const handleNext = () => {
-    if (renditionRef.current) renditionRef.current.next()
+    if (renditionRef.current && renditionReadyRef.current) renditionRef.current.next()
   }
 
   return (
