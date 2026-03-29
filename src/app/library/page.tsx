@@ -6,6 +6,7 @@ import { signOut } from 'next-auth/react'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { EditMediaModal } from '@/components/EditMediaModal'
 import { CollectionModal, AddToCollectionModal } from '@/components/CollectionModal'
+import { UserSettingsModal } from '@/components/UserSettingsModal'
 
 interface Media {
   id: string
@@ -34,12 +35,16 @@ interface Collection {
   id: string
   name: string
   description: string | null
+  isPublic: boolean
+  userId: string
+  user: { name: string | null; email: string | null }
   media: Media[]
   _count: { media: number }
 }
 
 interface CurrentUser {
   id: string
+  kindleEmail?: string | null
 }
 
 export default function Library() {
@@ -55,6 +60,8 @@ export default function Library() {
   const [showCollectionModal, setShowCollectionModal] = useState(false)
   const [editingCollection, setEditingCollection] = useState<Collection | null>(null)
   const [addToCollectionMedia, setAddToCollectionMedia] = useState<Media | null>(null)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [sendingToKindle, setSendingToKindle] = useState<string | null>(null)
   const [progressFilter, setProgressFilter] = useState<'all' | 'not_started' | 'in_progress' | 'completed'>('all')
 
   useEffect(() => {
@@ -62,13 +69,21 @@ export default function Library() {
     fetchMedia()
     fetchCollections()
     checkDeletedMedia()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const fetchCurrentUser = async () => {
-    // Get current user session by checking who we are
-    // We infer the user from the media they uploaded
-    // The actual user ID will be set when fetching media or deleted media
+    try {
+      const response = await fetch('/api/user/settings')
+      if (response.ok) {
+        const data = await response.json()
+        setCurrentUser({
+          id: data.user.id,
+          kindleEmail: data.user.kindleEmail,
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching user settings:', error)
+    }
   }
 
   const fetchMedia = async () => {
@@ -77,12 +92,6 @@ export default function Library() {
       if (response.ok) {
         const data = await response.json()
         setMedia(data.media)
-        // Extract current user ID from the first media item the user uploaded
-        // This is a workaround - ideally we'd have a /api/me endpoint
-        const userMedia = data.media.find((m: Media) => m.uploadedBy)
-        if (userMedia) {
-          setCurrentUser({ id: userMedia.uploadedBy })
-        }
       }
     } catch (error) {
       console.error('Error fetching media:', error)
@@ -97,6 +106,9 @@ export default function Library() {
       if (response.ok) {
         const data = await response.json()
         setCollections(data.collections)
+        if (data.currentUserId) {
+          setCurrentUser({ id: data.currentUserId })
+        }
       }
     } catch (error) {
       console.error('Error fetching collections:', error)
@@ -109,10 +121,6 @@ export default function Library() {
       if (response.ok) {
         const data = await response.json()
         setShowDeletedLink(data.media.length > 0)
-        // Also try to get current user from deleted media if not already set
-        if (!currentUser && data.media.length > 0) {
-          setCurrentUser({ id: data.media[0].uploadedBy })
-        }
       }
     } catch (error) {
       console.error('Error checking deleted media:', error)
@@ -175,7 +183,7 @@ export default function Library() {
     }
   }
 
-  const handleCreateCollection = async (data: { name: string; description: string }) => {
+  const handleCreateCollection = async (data: { name: string; description: string; isPublic: boolean }) => {
     const response = await fetch('/api/collections', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -190,7 +198,7 @@ export default function Library() {
     await fetchCollections()
   }
 
-  const handleEditCollection = async (data: { name: string; description: string }) => {
+  const handleEditCollection = async (data: { name: string; description: string; isPublic: boolean }) => {
     if (!editingCollection) return
 
     const response = await fetch(`/api/collections/${editingCollection.id}`, {
@@ -291,6 +299,88 @@ export default function Library() {
     return currentUser?.id === item.uploadedBy
   }
 
+  const canManageCollection = (collection: Collection) => {
+    return currentUser?.id === collection.userId
+  }
+
+  // Own collections only (for AddToCollectionModal)
+  const ownCollections = collections.filter(c => c.userId === currentUser?.id)
+
+  const handleSendToKindle = async (mediaId: string) => {
+    if (!currentUser?.kindleEmail) {
+      if (confirm('You have no Kindle email configured. Would you like to add one in Settings?')) {
+        setShowSettingsModal(true)
+      }
+      return
+    }
+
+    setSendingToKindle(mediaId)
+    try {
+      const response = await fetch(`/api/media/${mediaId}/send-to-kindle`, {
+        method: 'POST',
+      })
+      const data = await response.json()
+      if (response.ok) {
+        alert(data.message)
+      } else {
+        alert(`Error: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Error sending to Kindle:', error)
+      alert('Failed to send to Kindle')
+    } finally {
+      setSendingToKindle(null)
+    }
+  }
+
+  const handleSettingsSave = (settings: { name: string; kindleEmail: string }) => {
+    setCurrentUser((prev) => ({
+      id: prev?.id || '',
+      kindleEmail: settings.kindleEmail || null,
+    }))
+  }
+
+  const canManageCollection = (collection: Collection) => {
+    return currentUser?.id === collection.userId
+  }
+
+  // Own collections only (for AddToCollectionModal)
+  const ownCollections = collections.filter(c => c.userId === currentUser?.id)
+
+  const handleSendToKindle = async (mediaId: string) => {
+    if (!currentUser?.kindleEmail) {
+      if (confirm('You have no Kindle email configured. Would you like to add one in Settings?')) {
+        setShowSettingsModal(true)
+      }
+      return
+    }
+
+    setSendingToKindle(mediaId)
+    try {
+      const response = await fetch(`/api/media/${mediaId}/send-to-kindle`, {
+        method: 'POST',
+      })
+      const data = await response.json()
+      if (response.ok) {
+        alert(data.message)
+      } else {
+        alert(`Error: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Error sending to Kindle:', error)
+      alert('Failed to send to Kindle')
+    } finally {
+      setSendingToKindle(null)
+    }
+  }
+
+  const handleSettingsSave = (settings: { name: string; kindleEmail: string }) => {
+    setCurrentUser((prev) => ({
+      id: prev?.id || '',
+      kindleEmail: settings.kindleEmail || null,
+    }))
+  }
+
   // Get the best (highest) reading progress across all files for a media item.
   // A media may have both EPUB and PDF files; we use the highest progress to
   // reflect the furthest the user has read regardless of file type.
@@ -365,6 +455,12 @@ export default function Library() {
               >
                 Invitations
               </Link>
+              <button
+                onClick={() => setShowSettingsModal(true)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+              >
+                Settings
+              </button>
               <button
                 onClick={() => signOut()}
                 className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
@@ -444,17 +540,39 @@ export default function Library() {
 
         {/* Breadcrumb for collection view */}
         {viewMode === 'collections' && selectedCollection && (
-          <div className="mb-6 flex items-center text-sm">
-            <button
-              onClick={() => setSelectedCollection(null)}
-              className="text-blue-600 dark:text-blue-400 hover:underline"
-            >
-              Collections
-            </button>
-            <span className="mx-2 text-gray-500">/</span>
-            <span className="text-gray-900 dark:text-white font-medium">
-              {selectedCollection.name}
-            </span>
+          <div className="mb-6 flex items-center gap-3 text-sm flex-wrap">
+            <div className="flex items-center">
+              <button
+                onClick={() => setSelectedCollection(null)}
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Collections
+              </button>
+              <span className="mx-2 text-gray-500">/</span>
+              <span className="text-gray-900 dark:text-white font-medium">
+                {selectedCollection.name}
+              </span>
+            </div>
+            {selectedCollection.isPublic ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-full">
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8a2 2 0 004 0 2 2 0 011.523-1.943A5.977 5.977 0 0116 10c0 .34-.028.675-.083 1H15a2 2 0 00-2 2v2.197A5.973 5.973 0 0110 16v-2a2 2 0 00-2-2 2 2 0 01-2-2 2 2 0 00-1.668-1.973z" clipRule="evenodd" />
+                </svg>
+                Public
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 rounded-full">
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                </svg>
+                Private
+              </span>
+            )}
+            {!canManageCollection(selectedCollection) && (
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                by {selectedCollection.user.name || selectedCollection.user.email}
+              </span>
+            )}
           </div>
         )}
 
@@ -489,7 +607,27 @@ export default function Library() {
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                           {collection.name}
                         </h3>
+                        {collection.isPublic ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-full">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8a2 2 0 004 0 2 2 0 011.523-1.943A5.977 5.977 0 0116 10c0 .34-.028.675-.083 1H15a2 2 0 00-2 2v2.197A5.973 5.973 0 0110 16v-2a2 2 0 00-2-2 2 2 0 01-2-2 2 2 0 00-1.668-1.973z" clipRule="evenodd" />
+                            </svg>
+                            Public
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 rounded-full">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                            </svg>
+                            Private
+                          </span>
+                        )}
                       </div>
+                      {!canManageCollection(collection) && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          by {collection.user.name || collection.user.email}
+                        </p>
+                      )}
                       {collection.description && (
                         <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 line-clamp-2">
                           {collection.description}
@@ -500,20 +638,22 @@ export default function Library() {
                       </p>
                     </div>
                   </div>
-                  <div className="mt-4 flex gap-2 border-t dark:border-gray-700 pt-4" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={() => setEditingCollection(collection)}
-                      className="flex-1 px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md border border-blue-600 dark:border-blue-400"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDeleteCollection(collection.id)}
-                      className="flex-1 px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md border border-red-600 dark:border-red-400"
-                    >
-                      Delete
-                    </button>
-                  </div>
+                  {canManageCollection(collection) && (
+                    <div className="mt-4 flex gap-2 border-t dark:border-gray-700 pt-4" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => setEditingCollection(collection)}
+                        className="flex-1 px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md border border-blue-600 dark:border-blue-400"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteCollection(collection.id)}
+                        className="flex-1 px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md border border-red-600 dark:border-red-400"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -628,7 +768,7 @@ export default function Library() {
 
                 {/* Collection and Edit actions */}
                 <div className="mt-2 flex gap-2">
-                  {selectedCollection ? (
+                  {selectedCollection && canManageCollection(selectedCollection) && (
                     <button
                       onClick={(e) => {
                         e.preventDefault()
@@ -638,7 +778,8 @@ export default function Library() {
                     >
                       Remove from Collection
                     </button>
-                  ) : (
+                  )}
+                  {!selectedCollection && (
                     <button
                       onClick={(e) => {
                         e.preventDefault()
@@ -649,6 +790,16 @@ export default function Library() {
                       Add to Collection
                     </button>
                   )}
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault()
+                      handleSendToKindle(item.id)
+                    }}
+                    disabled={sendingToKindle === item.id}
+                    className="flex-1 px-3 py-1.5 text-sm font-medium text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20 rounded-md border border-teal-600 dark:border-teal-400 disabled:opacity-50"
+                  >
+                    {sendingToKindle === item.id ? 'Sending...' : '📖 Send to Kindle'}
+                  </button>
                 </div>
                 
                 {canEditMedia(item) && (
@@ -718,7 +869,7 @@ export default function Library() {
         <AddToCollectionModal
           isOpen={true}
           onClose={() => setAddToCollectionMedia(null)}
-          collections={collections}
+          collections={ownCollections}
           mediaId={addToCollectionMedia.id}
           mediaTitle={addToCollectionMedia.title}
           onAdd={handleAddToCollection}
@@ -728,6 +879,12 @@ export default function Library() {
           }}
         />
       )}
+
+      <UserSettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        onSave={handleSettingsSave}
+      />
     </div>
   )
 }
