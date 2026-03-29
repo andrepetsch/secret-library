@@ -6,6 +6,7 @@ import { signOut } from 'next-auth/react'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { EditMediaModal } from '@/components/EditMediaModal'
 import { CollectionModal, AddToCollectionModal } from '@/components/CollectionModal'
+import { UserSettingsModal } from '@/components/UserSettingsModal'
 
 interface Media {
   id: string
@@ -35,6 +36,7 @@ interface Collection {
 
 interface CurrentUser {
   id: string
+  kindleEmail?: string | null
 }
 
 export default function Library() {
@@ -50,19 +52,29 @@ export default function Library() {
   const [showCollectionModal, setShowCollectionModal] = useState(false)
   const [editingCollection, setEditingCollection] = useState<Collection | null>(null)
   const [addToCollectionMedia, setAddToCollectionMedia] = useState<Media | null>(null)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [sendingToKindle, setSendingToKindle] = useState<string | null>(null)
 
   useEffect(() => {
     fetchCurrentUser()
     fetchMedia()
     fetchCollections()
     checkDeletedMedia()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const fetchCurrentUser = async () => {
-    // Get current user session by checking who we are
-    // We infer the user from the media they uploaded
-    // The actual user ID will be set when fetching media or deleted media
+    try {
+      const response = await fetch('/api/user/settings')
+      if (response.ok) {
+        const data = await response.json()
+        setCurrentUser({
+          id: data.user.id,
+          kindleEmail: data.user.kindleEmail,
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching user settings:', error)
+    }
   }
 
   const fetchMedia = async () => {
@@ -285,6 +297,40 @@ export default function Library() {
   // Own collections only (for AddToCollectionModal)
   const ownCollections = collections.filter(c => c.userId === currentUser?.id)
 
+  const handleSendToKindle = async (mediaId: string) => {
+    if (!currentUser?.kindleEmail) {
+      if (confirm('You have no Kindle email configured. Would you like to add one in Settings?')) {
+        setShowSettingsModal(true)
+      }
+      return
+    }
+
+    setSendingToKindle(mediaId)
+    try {
+      const response = await fetch(`/api/media/${mediaId}/send-to-kindle`, {
+        method: 'POST',
+      })
+      const data = await response.json()
+      if (response.ok) {
+        alert(data.message)
+      } else {
+        alert(`Error: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Error sending to Kindle:', error)
+      alert('Failed to send to Kindle')
+    } finally {
+      setSendingToKindle(null)
+    }
+  }
+
+  const handleSettingsSave = (settings: { name: string; kindleEmail: string }) => {
+    setCurrentUser((prev) => ({
+      id: prev?.id || '',
+      kindleEmail: settings.kindleEmail || null,
+    }))
+  }
+
   // Get the media to display based on view mode
   const getDisplayMedia = () => {
     let mediaToShow: Media[]
@@ -340,6 +386,12 @@ export default function Library() {
               >
                 Invitations
               </Link>
+              <button
+                onClick={() => setShowSettingsModal(true)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+              >
+                Settings
+              </button>
               <button
                 onClick={() => signOut()}
                 className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
@@ -637,6 +689,16 @@ export default function Library() {
                       Add to Collection
                     </button>
                   )}
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault()
+                      handleSendToKindle(item.id)
+                    }}
+                    disabled={sendingToKindle === item.id}
+                    className="flex-1 px-3 py-1.5 text-sm font-medium text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20 rounded-md border border-teal-600 dark:border-teal-400 disabled:opacity-50"
+                  >
+                    {sendingToKindle === item.id ? 'Sending...' : '📖 Send to Kindle'}
+                  </button>
                 </div>
                 
                 {canEditMedia(item) && (
@@ -716,6 +778,12 @@ export default function Library() {
           }}
         />
       )}
+
+      <UserSettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        onSave={handleSettingsSave}
+      />
     </div>
   )
 }
