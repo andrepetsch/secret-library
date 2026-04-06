@@ -27,7 +27,7 @@ export async function GET(
       return NextResponse.json({ error: 'Media not found' }, { status: 404 })
     }
 
-    const file = media.files.find((f: { id: string }) => f.id === fileId)
+    const file = media.files.find((f: { id: string; fileUrl: string; fileType: string }) => f.id === fileId)
     if (!file) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
@@ -39,13 +39,12 @@ export async function GET(
       return NextResponse.json({ error: 'File content unavailable' }, { status: 502 })
     }
 
-    const contentType = file.fileUrl.endsWith('.epub')
-      ? 'application/epub+zip'
-      : 'application/pdf'
+    const isEpub = file.fileType === 'epub'
+    const contentType = isEpub ? 'application/epub+zip' : 'application/pdf'
+    const ext = isEpub ? 'epub' : 'pdf'
 
     const isDownload = req.nextUrl.searchParams.get('download') === 'true'
     const safeTitle = media.title.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_')
-    const ext = file.fileUrl.endsWith('.epub') ? 'epub' : 'pdf'
     const filename = `${safeTitle}.${ext}`
 
     const headers = new Headers({
