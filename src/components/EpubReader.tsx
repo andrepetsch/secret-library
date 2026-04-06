@@ -91,98 +91,112 @@ export default function EpubReader({ url, mediaId, fileId }: EpubReaderProps) {
   useEffect(() => {
     if (!viewerRef.current || !url) return
 
-    const book = ePub(url)
-    const newRendition = book.renderTo(viewerRef.current, {
-      width: '100%',
-      height: '100%',
-      spread: 'none',
-    })
+    let cancelled = false
+    let newRendition: EpubRendition | null = null
+    let keyHandler: ((e: KeyboardEvent) => void) | null = null
 
-    // Apply theme-based styling to the epub content
-    const applyTheme = () => {
-      if (theme === 'dark') {
-        newRendition.themes.default({
-          'body': {
-            'background-color': '#1f2937 !important',
-            'color': '#e5e7eb !important'
-          },
-          'p': {
-            'color': '#e5e7eb !important'
-          },
-          'h1, h2, h3, h4, h5, h6': {
-            'color': '#f3f4f6 !important'
-          },
-          'a': {
-            'color': '#60a5fa !important'
-          }
-        })
-      } else {
-        newRendition.themes.default({
-          'body': {
-            'background-color': '#ffffff !important',
-            'color': '#1f2937 !important'
-          },
-          'p': {
-            'color': '#1f2937 !important'
-          },
-          'h1, h2, h3, h4, h5, h6': {
-            'color': '#111827 !important'
-          },
-          'a': {
-            'color': '#2563eb !important'
-          }
-        })
+    const initBook = async () => {
+      const response = await fetch(url)
+      const buffer = await response.arrayBuffer()
+      if (cancelled || !viewerRef.current) return
+
+      const book = ePub(buffer)
+      newRendition = book.renderTo(viewerRef.current, {
+        width: '100%',
+        height: '100%',
+        spread: 'none',
+      })
+
+      // Apply theme-based styling to the epub content
+      const applyTheme = () => {
+        if (!newRendition) return
+        if (theme === 'dark') {
+          newRendition.themes.default({
+            'body': {
+              'background-color': '#1f2937 !important',
+              'color': '#e5e7eb !important'
+            },
+            'p': {
+              'color': '#e5e7eb !important'
+            },
+            'h1, h2, h3, h4, h5, h6': {
+              'color': '#f3f4f6 !important'
+            },
+            'a': {
+              'color': '#60a5fa !important'
+            }
+          })
+        } else {
+          newRendition.themes.default({
+            'body': {
+              'background-color': '#ffffff !important',
+              'color': '#1f2937 !important'
+            },
+            'p': {
+              'color': '#1f2937 !important'
+            },
+            'h1, h2, h3, h4, h5, h6': {
+              'color': '#111827 !important'
+            },
+            'a': {
+              'color': '#2563eb !important'
+            }
+          })
+        }
       }
+
+      applyTheme()
+
+      // Generate locations so that location.start.percentage is populated.
+      // Without this, percentageFromLocation() returns 0 for all pages because
+      // book.locations.total is 0.
+      book.ready.then(() => book.locations.generate(1024))
+
+      // Resume from current position (handles theme toggle) or start from beginning.
+      // fetchAndRestore (separate effect) sets currentLocationRef after the API call resolves,
+      // then calls display() directly on renditionRef. This handles initial page restoration.
+      // currentLocationRef is updated by the 'relocated' event during normal reading.
+      const displayPromise = currentLocationRef.current
+        ? newRendition.display(currentLocationRef.current)
+        : newRendition.display()
+      displayPromise.then(() => {
+        renditionReadyRef.current = true
+      })
+
+      // Track location changes
+      newRendition.on('relocated', (location: EpubLocation) => {
+        const percent = location.start.percentage ?? 0
+        currentLocationRef.current = location.start.cfi
+        // Ensure any navigation (including page 1) is stored as at least 1% so
+        // the book is classified as "in progress" rather than "not started".
+        const stored = Math.max(1, Math.round(percent * 100))
+        setPercentComplete(stored)
+        saveProgress(location.start.cfi, stored)
+      })
+
+      renditionRef.current = newRendition
+
+      keyHandler = (e: KeyboardEvent) => {
+        if (!renditionReadyRef.current) return
+        if (e.key === 'ArrowRight') {
+          newRendition!.next()
+        } else if (e.key === 'ArrowLeft') {
+          newRendition!.prev()
+        }
+      }
+
+      document.addEventListener('keydown', keyHandler)
     }
 
-    applyTheme()
-
-    // Generate locations so that location.start.percentage is populated.
-    // Without this, percentageFromLocation() returns 0 for all pages because
-    // book.locations.total is 0.
-    book.ready.then(() => book.locations.generate(1024))
-
-    // Resume from current position (handles theme toggle) or start from beginning.
-    // fetchAndRestore (separate effect) sets currentLocationRef after the API call resolves,
-    // then calls display() directly on renditionRef. This handles initial page restoration.
-    // currentLocationRef is updated by the 'relocated' event during normal reading.
-    const displayPromise = currentLocationRef.current
-      ? newRendition.display(currentLocationRef.current)
-      : newRendition.display()
-    displayPromise.then(() => {
-      renditionReadyRef.current = true
-    })
-
-    // Track location changes
-    newRendition.on('relocated', (location: EpubLocation) => {
-      const percent = location.start.percentage ?? 0
-      currentLocationRef.current = location.start.cfi
-      // Ensure any navigation (including page 1) is stored as at least 1% so
-      // the book is classified as "in progress" rather than "not started".
-      const stored = Math.max(1, Math.round(percent * 100))
-      setPercentComplete(stored)
-      saveProgress(location.start.cfi, stored)
-    })
-
-    renditionRef.current = newRendition
-
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (!renditionReadyRef.current) return
-      if (e.key === 'ArrowRight') {
-        newRendition.next()
-      } else if (e.key === 'ArrowLeft') {
-        newRendition.prev()
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyPress)
+    initBook().catch((error) => console.error('Error loading epub:', error))
 
     return () => {
-      document.removeEventListener('keydown', handleKeyPress)
+      cancelled = true
+      if (keyHandler) document.removeEventListener('keydown', keyHandler)
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
       renditionReadyRef.current = false
       renditionRef.current = null
-      newRendition.destroy()
+      if (newRendition) newRendition.destroy()
     }
   // saveProgress is stable across re-renders when url/fileId don't change.
   // url and theme are the only values that should trigger a full re-render of the book.
