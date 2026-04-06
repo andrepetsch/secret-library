@@ -5,7 +5,6 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import FileUrlProvider from '@/components/FileUrlProvider'
 
 const EpubReader = dynamic(() => import('@/components/EpubReader'), { ssr: false })
 const PdfReader = dynamic(() => import('@/components/PdfReader'), { ssr: false })
@@ -32,9 +31,8 @@ export default function ReaderPage() {
   const handleDownload = () => {
     if (!selectedFile || !media) return
     
-    // Create a temporary link to download the file
     const link = document.createElement('a')
-    link.href = `/api/media/${media.id}/file?fileId=${selectedFile.id}&download=true`
+    link.href = selectedFile.fileUrl
     link.download = `${media.title}.${selectedFile.fileType}`
     document.body.appendChild(link)
     link.click()
@@ -44,7 +42,7 @@ export default function ReaderPage() {
   useEffect(() => {
     const fetchMedia = async () => {
       try {
-        // Get the media ID from params
+        // Get the media ID from params (which is a Promise in client components)
         const mediaId = await params.id
         
         // Fetch media data
@@ -55,10 +53,16 @@ export default function ReaderPage() {
         const mediaData = await mediaResponse.json()
         setMedia(mediaData.media)
         
-        // Auto-select first file or prefer EPUB if available
-        if (mediaData.media.files && mediaData.media.files.length > 0) {
-          const epubFile = mediaData.media.files.find((f: MediaFile) => f.fileType === 'epub')
-          setSelectedFile(epubFile || mediaData.media.files[0])
+        // Fetch file URLs with proper S3 access
+        const fileUrlsResponse = await fetch(`/api/media/${mediaId}/file-url`)
+        if (fileUrlsResponse.ok) {
+          const { fileUrls } = await fileUrlsResponse.json()
+          
+          // Auto-select first file or prefer EPUB if available
+          if (fileUrls && fileUrls.length > 0) {
+            const epubFile = fileUrls.find((f: MediaFile) => f.fileType === 'epub')
+            setSelectedFile(epubFile || fileUrls[0])
+          }
         }
       } catch (error) {
         console.error('Error fetching media:', error)
@@ -137,17 +141,11 @@ export default function ReaderPage() {
       </nav>
 
       <div className="h-[calc(100vh-4rem)]">
-        <FileUrlProvider mediaId={media.id} fileId={selectedFile.id}>
-          {(fileUrl) => (
-            fileUrl && (
-              selectedFile.fileType === 'epub' ? (
-                <EpubReader url={fileUrl} mediaId={media.id} fileId={selectedFile.id} />
-              ) : (
-                <PdfReader url={fileUrl} mediaId={media.id} fileId={selectedFile.id} />
-              )
-            )
-          )}
-        </FileUrlProvider>
+        {selectedFile.fileType === 'epub' ? (
+          <EpubReader url={selectedFile.fileUrl} mediaId={media.id} fileId={selectedFile.id} />
+        ) : (
+          <PdfReader url={selectedFile.fileUrl} mediaId={media.id} fileId={selectedFile.id} />
+        )}
       </div>
     </div>
   )

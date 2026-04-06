@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { del } from '@vercel/blob'
+import { DeleteObjectCommand } from '@aws-sdk/client-s3'
+import { s3Client } from '@/lib/s3'
 
 export async function POST() {
   try {
@@ -35,28 +36,53 @@ export async function POST() {
       })
     }
 
-    // Delete files from blob storage
+    // Delete files from S3 storage
     const deletePromises = mediaToDelete.flatMap((media: { id: string; files: Array<{ id: string; fileUrl: string }>; coverUrl: string | null }) => {
-      const promises = media.files.map(async (file: { id: string; fileUrl: string }) => {
+      // Extract the file key from the S3 URL for deletion
+      const extractKeyFromUrl = (url: string): string | null => {
         try {
-          await del(file.fileUrl)
+          // S3 URL format: https://endpoint/bucketName/key
+          const urlObj = new URL(url)
+          const parts = urlObj.pathname.split('/').filter(p => p)
+          // Remove bucket name from parts if present
+          if (parts.length > 1 && parts[0] === process.env.S3_BUCKET_NAME) {
+            return parts.slice(1).join('/')
+          }
+          return parts.join('/')
         } catch (error) {
-          console.error(`Error deleting blob for file ${file.id}:`, error)
-          // Continue even if blob deletion fails
+          console.error(`Error parsing S3 URL: ${url}`, error)
+          return null
         }
-      })
+      }
+      
+      const promises = media.files
+        .map(file => extractKeyFromUrl(file.fileUrl))
+        .filter((key): key is string => key !== null)
+        .map(async (key: string) => {
+          try {
+            await s3Client.send(new DeleteObjectCommand({
+              Bucket: process.env.S3_BUCKET_NAME,
+              Key: key
+            }))
+          } catch (error) {
+            console.error(`Error deleting S3 object for file ${file.id}:`, error)
+            // Continue even if deletion fails
+          }
+        })
       
       // Also delete cover if exists
       if (media.coverUrl) {
-        promises.push(
-          (async () => {
-            try {
-              await del(media.coverUrl!)
-            } catch (error) {
-              console.error(`Error deleting cover for media ${media.id}:`, error)
-            }
-          })()
-        )
+        const coverKey = extractKeyFromUrl(media.coverUrl)
+        if (coverKey) {
+          promises.push(
+            s3Client.send(new DeleteObjectCommand({
+              Bucket: process.env.S3_BUCKET_NAME,
+              Key: coverKey
+            })).catch(error => {
+              console.error(`Error deleting S3 cover for media ${media.id}:`, error)
+            })
+          )
+        }
       }
       
       return promises

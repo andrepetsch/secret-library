@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { put } from '@vercel/blob'
+import { uploadFileToS3 } from '@/lib/s3-upload'
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,10 +32,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Title is required' }, { status: 400 })
     }
 
-    // Validate media type
-    const allowedMediaTypes = ['Book', 'Magazine', 'Paper', 'Article']
-    const validatedMediaType = mediaType && allowedMediaTypes.includes(mediaType) ? mediaType : 'Book'
-
     // Validate file type
     const fileType = file.type
     if (fileType !== 'application/epub+zip' && fileType !== 'application/pdf') {
@@ -44,10 +40,15 @@ export async function POST(req: NextRequest) {
 
     const normalizedFileType = fileType === 'application/epub+zip' ? 'epub' : 'pdf'
 
-    // Upload to Vercel Blob
-    const blob = await put(file.name, file, {
-      access: 'public',
-    })
+    // Upload to S3 storage (server-side)
+    let fileUrl: string
+    try {
+      const uploadResult = await uploadFileToS3(file, { userId: session.user.id })
+      fileUrl = uploadResult.url
+    } catch (uploadError) {
+      console.error('S3 upload failed:', uploadError)
+      return NextResponse.json({ error: 'Failed to upload file to storage' }, { status: 500 })
+    }
 
     let media
 
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
       await prisma.mediaFile.create({
         data: {
           mediaId: mediaId,
-          fileUrl: blob.url,
+          fileUrl: fileUrl,
           fileType: normalizedFileType
         }
       })
@@ -97,6 +98,10 @@ export async function POST(req: NextRequest) {
       })
     } else {
       // Create new media record with file
+      // Validate media type
+      const allowedMediaTypes = ['Book', 'Magazine', 'Paper', 'Article']
+      const validatedMediaType = mediaType && allowedMediaTypes.includes(mediaType) ? mediaType : 'Book'
+
       media = await prisma.media.create({
         data: {
           title,
@@ -108,7 +113,7 @@ export async function POST(req: NextRequest) {
           uploadedBy: session.user.id,
           files: {
             create: {
-              fileUrl: blob.url,
+              fileUrl: fileUrl,
               fileType: normalizedFileType
             }
           }

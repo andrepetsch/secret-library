@@ -4,7 +4,6 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { upload } from '@vercel/blob/client'
 import { extractMetadataClient } from '@/lib/metadata-client'
 
 interface Media {
@@ -160,54 +159,43 @@ function UploadForm() {
     }
 
     try {
-      // Prepare metadata payload
-      const metadata: Record<string, string> = {}
+      // Prepare FormData for file upload
+      const formData = new FormData()
+      formData.append('file', selectedFile)
       
+      // Add metadata fields
       if (isAddingToExisting && existingMedia) {
-        metadata.mediaId = existingMedia.id
+        formData.append('mediaId', existingMedia.id)
       } else {
-        metadata.title = formValues.title
-        metadata.author = formValues.author
-        metadata.description = formValues.description
-        metadata.language = formValues.language
-        metadata.publicationDate = formValues.publicationDate
-        metadata.mediaType = formValues.mediaType
+        formData.append('title', formValues.title)
+        formData.append('mediaType', formValues.mediaType)
+        
+        if (formValues.author) formData.append('author', formValues.author)
+        if (formValues.description) formData.append('description', formValues.description)
+        if (formValues.language) formData.append('language', formValues.language)
+        if (formValues.publicationDate) formData.append('publicationDate', formValues.publicationDate)
         
         const tagsInput = (document.getElementById('tags') as HTMLInputElement)?.value
         if (tagsInput) {
-          metadata.tags = tagsInput
+          formData.append('tags', tagsInput)
         }
       }
 
-      // Upload directly to Vercel Blob using client-side upload
-      const blob = await upload(selectedFile.name, selectedFile, {
-        access: 'public',
-        handleUploadUrl: '/api/upload',
-        clientPayload: JSON.stringify(metadata),
-      })
-
-      console.log('Upload successful:', blob.url)
-      console.log('Download URL:', blob.downloadUrl)
+      console.log('Uploading file to server for S3 storage...')
       
-      // Create media record in database after upload completes
-      // This is more reliable than relying on the onUploadCompleted webhook
-      // Use downloadUrl instead of url for proper CORS and content-type headers
-      const createMediaResponse = await fetch('/api/media/create-from-blob', {
+      // Upload to server which handles S3 storage
+      const response = await fetch('/api/upload', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          blobUrl: blob.downloadUrl,
-          contentType: blob.contentType,
-          ...metadata
-        }),
+        body: formData,
       })
 
-      if (!createMediaResponse.ok) {
-        const errorData = await createMediaResponse.json()
-        throw new Error(errorData.error || 'Failed to create media record')
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to upload file')
       }
+
+      const result = await response.json()
+      console.log('Upload successful:', result)
 
       router.push('/library')
     } catch (error) {
