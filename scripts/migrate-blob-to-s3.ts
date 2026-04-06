@@ -21,7 +21,6 @@ import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
 import { S3Client } from '@aws-sdk/client-s3'
 import { Upload } from '@aws-sdk/lib-storage'
-import { nanoid } from 'nanoid'
 
 // Matches Vercel Blob storage URLs:
 //   https://<hash>.public.blob.vercel-storage.com/...
@@ -58,16 +57,20 @@ function buildS3Client(): S3Client {
 
 async function downloadFromVercelBlob(url: string): Promise<Buffer> {
   const headers: Record<string, string> = {}
+  const usingToken = !!process.env.BLOB_READ_WRITE_TOKEN
 
-  if (process.env.BLOB_READ_WRITE_TOKEN) {
+  if (usingToken) {
     headers['Authorization'] = `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`
   }
 
   const response = await fetch(url, { headers })
 
   if (!response.ok) {
+    const tokenHint = usingToken
+      ? 'BLOB_READ_WRITE_TOKEN was provided'
+      : 'BLOB_READ_WRITE_TOKEN was NOT set (required for private blobs)'
     throw new Error(
-      `Failed to download blob (HTTP ${response.status} ${response.statusText}): ${url}`
+      `Failed to download blob (HTTP ${response.status} ${response.statusText}; ${tokenHint}): ${url}`
     )
   }
 
@@ -124,9 +127,12 @@ async function main() {
     const userId = mediaFile.media.uploadedBy
     const title = mediaFile.media.title
 
+    // Use the mediaFile ID as the S3 key so the migration is idempotent:
+    // if it is interrupted and re-run, the same key is produced and the
+    // upload simply overwrites any partial object from the previous attempt.
+    const s3Key = `uploads/${userId}/${id}.${fileType}`
     const contentType =
       fileType === 'epub' ? 'application/epub+zip' : 'application/pdf'
-    const s3Key = `uploads/${userId}/${nanoid()}.${fileType}`
 
     console.log(`[${index}/${blobFiles.length}] "${title}" (${fileType.toUpperCase()})`)
     console.log(`  ID:   ${id}`)
