@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { getPresignedUploadUrl } from '@/lib/s3'
+import { Upload } from '@aws-sdk/lib-storage'
+import { s3, getS3Bucket } from '@/lib/s3'
 import { nanoid } from 'nanoid'
 
 const ALLOWED_CONTENT_TYPES = ['application/pdf', 'application/epub+zip']
@@ -13,25 +14,35 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await req.json()
-    const { filename, contentType } = body
+    const formData = await req.formData()
+    const file = formData.get('file') as File | null
 
-    if (!filename || !contentType) {
-      return NextResponse.json({ error: 'filename and contentType are required' }, { status: 400 })
+    if (!file) {
+      return NextResponse.json({ error: 'file is required' }, { status: 400 })
     }
 
-    if (!ALLOWED_CONTENT_TYPES.includes(contentType)) {
+    if (!ALLOWED_CONTENT_TYPES.includes(file.type)) {
       return NextResponse.json({ error: 'Only EPUB and PDF files are allowed' }, { status: 400 })
     }
 
-    const ext = contentType === 'application/epub+zip' ? 'epub' : 'pdf'
+    const ext = file.type === 'application/epub+zip' ? 'epub' : 'pdf'
     const s3Key = `uploads/${session.user.id}/${nanoid()}.${ext}`
 
-    const presignedUrl = await getPresignedUploadUrl(s3Key, contentType)
+    const upload = new Upload({
+      client: s3(),
+      params: {
+        Bucket: getS3Bucket(),
+        Key: s3Key,
+        Body: Buffer.from(await file.arrayBuffer()),
+        ContentType: file.type,
+      },
+    })
 
-    return NextResponse.json({ presignedUrl, s3Key })
+    await upload.done()
+
+    return NextResponse.json({ s3Key })
   } catch (error) {
-    console.error('Error generating presigned URL:', error)
-    return NextResponse.json({ error: 'Failed to generate upload URL' }, { status: 500 })
+    console.error('Error uploading file to S3:', error)
+    return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 })
   }
 }

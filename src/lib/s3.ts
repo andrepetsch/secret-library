@@ -1,5 +1,4 @@
 import { S3Client, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 function getS3Client(): S3Client {
   if (!process.env.S3_ENDPOINT) throw new Error('S3_ENDPOINT is not set')
@@ -31,16 +30,6 @@ export function s3(): S3Client {
     _s3Client = getS3Client()
   }
   return _s3Client
-}
-
-export async function getPresignedUploadUrl(s3Key: string, contentType: string, expiresIn = 3600): Promise<string> {
-  const { PutObjectCommand } = await import('@aws-sdk/client-s3')
-  const command = new PutObjectCommand({
-    Bucket: getS3Bucket(),
-    Key: s3Key,
-    ContentType: contentType,
-  })
-  return getSignedUrl(s3(), command, { expiresIn })
 }
 
 export async function getObjectStream(s3Key: string) {

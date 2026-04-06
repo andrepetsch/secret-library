@@ -178,35 +178,23 @@ function UploadForm() {
         }
       }
 
-      // Step 1: Get presigned S3 upload URL from server
-      const presignResponse = await fetch('/api/upload', {
+      // Step 1: Upload file to server (server uploads to S3 — no CORS)
+      const uploadFormData = new FormData()
+      uploadFormData.append('file', selectedFile)
+
+      const uploadResponse = await fetch('/api/upload', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          filename: selectedFile.name,
-          contentType: selectedFile.type,
-        }),
-      })
-
-      if (!presignResponse.ok) {
-        const errorData = await presignResponse.json()
-        throw new Error(errorData.error || 'Failed to get upload URL')
-      }
-
-      const { presignedUrl, s3Key } = await presignResponse.json()
-
-      // Step 2: Upload file directly to S3 using presigned URL
-      const uploadResponse = await fetch(presignedUrl, {
-        method: 'PUT',
-        body: selectedFile,
-        headers: { 'Content-Type': selectedFile.type },
+        body: uploadFormData,
       })
 
       if (!uploadResponse.ok) {
-        throw new Error('Failed to upload file to storage')
+        const errorData = await uploadResponse.json()
+        throw new Error(errorData.error || 'Failed to upload file')
       }
 
-      // Step 3: Create media record in database
+      const { s3Key } = await uploadResponse.json()
+
+      // Step 2: Create media record in database
       const createMediaResponse = await fetch('/api/media/create-from-blob', {
         method: 'POST',
         headers: {
