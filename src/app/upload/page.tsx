@@ -4,7 +4,6 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { upload } from '@vercel/blob/client'
 import { extractMetadataClient } from '@/lib/metadata-client'
 
 interface Media {
@@ -179,27 +178,43 @@ function UploadForm() {
         }
       }
 
-      // Upload directly to Vercel Blob using client-side upload
-      const blob = await upload(selectedFile.name, selectedFile, {
-        access: 'public',
-        handleUploadUrl: '/api/upload',
-        clientPayload: JSON.stringify(metadata),
+      // Step 1: Get presigned S3 upload URL from server
+      const presignResponse = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: selectedFile.name,
+          contentType: selectedFile.type,
+        }),
       })
 
-      console.log('Upload successful:', blob.url)
-      console.log('Download URL:', blob.downloadUrl)
-      
-      // Create media record in database after upload completes
-      // This is more reliable than relying on the onUploadCompleted webhook
-      // Use downloadUrl instead of url for proper CORS and content-type headers
+      if (!presignResponse.ok) {
+        const errorData = await presignResponse.json()
+        throw new Error(errorData.error || 'Failed to get upload URL')
+      }
+
+      const { presignedUrl, s3Key } = await presignResponse.json()
+
+      // Step 2: Upload file directly to S3 using presigned URL
+      const uploadResponse = await fetch(presignedUrl, {
+        method: 'PUT',
+        body: selectedFile,
+        headers: { 'Content-Type': selectedFile.type },
+      })
+
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to upload file to storage')
+      }
+
+      // Step 3: Create media record in database
       const createMediaResponse = await fetch('/api/media/create-from-blob', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          blobUrl: blob.downloadUrl,
-          contentType: blob.contentType,
+          s3Key,
+          contentType: selectedFile.type,
           ...metadata
         }),
       })
