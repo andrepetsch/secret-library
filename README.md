@@ -27,7 +27,7 @@ A shared library for EPUB and PDF files with invitation-only access.
 - **NextAuth.js** - Authentication with GitHub and Microsoft providers
 - **Prisma** - Database ORM
 - **Neon** - PostgreSQL database
-- **Vercel Blob** - File storage for EPUBs and PDFs
+- **Strato HiDrive S3** - S3-compatible file storage for EPUBs and PDFs
 - **Tailwind CSS** - Styling
 
 ## Getting Started
@@ -38,7 +38,7 @@ A shared library for EPUB and PDF files with invitation-only access.
 - A Neon PostgreSQL database
 - GitHub OAuth App credentials
 - Microsoft Entra ID (Azure AD) OAuth App credentials (optional)
-- Vercel Blob Storage token
+- Strato HiDrive S3 credentials (or any S3-compatible storage)
 
 ### Installation
 
@@ -64,7 +64,11 @@ Edit `.env` and add your credentials:
 - `NEXTAUTH_SECRET`: Generate with `openssl rand -base64 32`
 - `GITHUB_ID` and `GITHUB_SECRET`: From your GitHub OAuth App
 - `MICROSOFT_ENTRA_ID_CLIENT_ID`, `MICROSOFT_ENTRA_ID_CLIENT_SECRET`, `MICROSOFT_ENTRA_ID_TENANT_ID`: From Azure AD (optional)
-- `BLOB_READ_WRITE_TOKEN`: Your Vercel Blob storage token
+- S3 storage configuration:
+  - `S3_ENDPOINT`: Your S3-compatible endpoint (e.g., `https://s3.hidrive.strato.com`)
+  - `S3_REGION`: Storage region (e.g., `eu-central-1`)
+  - `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY`: S3 credentials
+  - `S3_BUCKET_NAME`: Target bucket name
 - Email configuration (optional, for sending invitation emails):
   - `EMAIL_HOST`: SMTP server host (e.g., `smtp.gmail.com`)
   - `EMAIL_PORT`: SMTP server port (e.g., `587`)
@@ -104,6 +108,41 @@ VALUES (
 ```
 
 Then visit `http://localhost:3000/invite/first-user-token` and sign in.
+
+## Migrating from Vercel Blob to S3
+
+If you previously stored files in Vercel Blob and want to migrate them to S3, use the
+included one-time migration script.
+
+### Prerequisites
+
+- All S3 environment variables must be configured in your `.env` file.
+- If your Vercel Blob files are **private**, add your Vercel Blob token to `.env`:
+  ```env
+  BLOB_READ_WRITE_TOKEN="your-vercel-blob-token"
+  ```
+
+### Running the migration
+
+**Dry run** (preview what would be migrated without making any changes):
+```bash
+npx tsx scripts/migrate-blob-to-s3.ts --dry-run
+```
+
+**Live run** (downloads each file, uploads to S3, and updates the database):
+```bash
+npx tsx scripts/migrate-blob-to-s3.ts
+```
+
+The script:
+1. Queries all `MediaFile` records whose `fileUrl` is a Vercel Blob URL.
+2. Downloads each file from Vercel Blob.
+3. Uploads it to S3 under `uploads/{userId}/{randomId}.{ext}`.
+4. Updates the `fileUrl` column in the database to the new S3 key.
+5. Prints a summary and exits with a non-zero code if any file failed.
+
+Files that have already been migrated (their `fileUrl` is already an S3 key) are
+automatically skipped.
 
 ## Usage
 
