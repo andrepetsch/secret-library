@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { put } from '@vercel/blob'
+import { Upload } from '@aws-sdk/lib-storage'
+import { s3, getS3Bucket } from '@/lib/s3'
+import { nanoid } from 'nanoid'
 
 export async function POST(req: NextRequest) {
   try {
@@ -44,10 +46,18 @@ export async function POST(req: NextRequest) {
 
     const normalizedFileType = fileType === 'application/epub+zip' ? 'epub' : 'pdf'
 
-    // Upload to Vercel Blob
-    const blob = await put(file.name, file, {
-      access: 'public',
+    // Upload to S3
+    const s3Key = `uploads/${session.user.id}/${nanoid()}.${normalizedFileType}`
+    const upload = new Upload({
+      client: s3(),
+      params: {
+        Bucket: getS3Bucket(),
+        Key: s3Key,
+        Body: Buffer.from(await file.arrayBuffer()),
+        ContentType: fileType,
+      },
     })
+    await upload.done()
 
     let media
 
@@ -77,7 +87,7 @@ export async function POST(req: NextRequest) {
       await prisma.mediaFile.create({
         data: {
           mediaId: mediaId,
-          fileUrl: blob.url,
+          fileUrl: s3Key,
           fileType: normalizedFileType
         }
       })
@@ -108,7 +118,7 @@ export async function POST(req: NextRequest) {
           uploadedBy: session.user.id,
           files: {
             create: {
-              fileUrl: blob.url,
+              fileUrl: s3Key,
               fileType: normalizedFileType
             }
           }

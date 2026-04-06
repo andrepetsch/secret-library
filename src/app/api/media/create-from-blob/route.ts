@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { s3, getS3Bucket } from '@/lib/s3'
+import { HeadObjectCommand } from '@aws-sdk/client-s3'
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,7 +14,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
     const {
-      blobUrl,
+      s3Key,
       contentType,
       mediaId,
       title,
@@ -24,8 +26,15 @@ export async function POST(req: NextRequest) {
       tags
     } = body
 
-    if (!blobUrl) {
-      return NextResponse.json({ error: 'Blob URL is required' }, { status: 400 })
+    if (!s3Key) {
+      return NextResponse.json({ error: 's3Key is required' }, { status: 400 })
+    }
+
+    // Verify the file actually exists in S3
+    try {
+      await s3().send(new HeadObjectCommand({ Bucket: getS3Bucket(), Key: s3Key }))
+    } catch {
+      return NextResponse.json({ error: 'File not found in storage' }, { status: 400 })
     }
 
     // Determine file type from content type
@@ -55,17 +64,16 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: `A ${fileType.toUpperCase()} file already exists for this media` }, { status: 400 })
       }
 
-      // Check if this exact blob URL already exists (prevent duplicates)
-      const existingBlobFile = existingMedia.files.find((f: { fileUrl: string }) => f.fileUrl === blobUrl)
-      if (existingBlobFile) {
-        console.log('[Create from blob] File already exists, returning existing media')
+      // Check if this exact s3Key already exists (prevent duplicates)
+      const existingKeyFile = existingMedia.files.find((f: { fileUrl: string }) => f.fileUrl === s3Key)
+      if (existingKeyFile) {
         media = existingMedia
       } else {
         // Add file to existing media
         await prisma.mediaFile.create({
           data: {
             mediaId: mediaId,
-            fileUrl: blobUrl,
+            fileUrl: s3Key,
             fileType: fileType
           }
         })
@@ -90,10 +98,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Title is required for new media' }, { status: 400 })
       }
 
-      // Check if a media file with this blob URL already exists
-      // This prevents duplicates if both webhook and explicit API call execute
+      // Check if a media file with this s3Key already exists (prevent duplicates)
       const existingFile = await prisma.mediaFile.findFirst({
-        where: { fileUrl: blobUrl },
+        where: { fileUrl: s3Key },
         include: {
           media: {
             include: {
@@ -111,7 +118,6 @@ export async function POST(req: NextRequest) {
       })
       
       if (existingFile) {
-        console.log('[Create from blob] Media already exists for this blob URL, returning existing media')
         return NextResponse.json({ media: existingFile.media })
       }
 
@@ -129,7 +135,7 @@ export async function POST(req: NextRequest) {
           uploadedBy: session.user.id,
           files: {
             create: {
-              fileUrl: blobUrl,
+              fileUrl: s3Key,
               fileType: fileType
             }
           }
@@ -151,7 +157,6 @@ export async function POST(req: NextRequest) {
         const tagNames = tags.split(',').map((t: string) => t.trim()).filter((t: string) => t)
         
         if (tagNames.length > 0) {
-          // Find or create all tags in batch
           const tagPromises = tagNames.map(async (tagName: string) => {
             return prisma.tag.upsert({
               where: { name: tagName },
@@ -162,7 +167,6 @@ export async function POST(req: NextRequest) {
           
           const createdTags = await Promise.all(tagPromises)
           
-          // Connect all tags to media in one operation
           await prisma.media.update({
             where: { id: media.id },
             data: {
@@ -192,7 +196,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ media })
   } catch (error) {
-    console.error('Error creating media from blob:', error)
+    console.error('Error creating media from S3:', error)
     return NextResponse.json({ error: 'Failed to create media record' }, { status: 500 })
   }
 }

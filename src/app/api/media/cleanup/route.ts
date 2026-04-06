@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { del } from '@vercel/blob'
+import { deleteObject } from '@/lib/s3'
 
 export async function POST() {
   try {
@@ -35,14 +35,14 @@ export async function POST() {
       })
     }
 
-    // Delete files from blob storage
+    // Delete files from S3
     const deletePromises = mediaToDelete.flatMap((media: { id: string; files: Array<{ id: string; fileUrl: string }>; coverUrl: string | null }) => {
       const promises = media.files.map(async (file: { id: string; fileUrl: string }) => {
         try {
-          await del(file.fileUrl)
+          await deleteObject(file.fileUrl)
         } catch (error) {
-          console.error(`Error deleting blob for file ${file.id}:`, error)
-          // Continue even if blob deletion fails
+          console.error(`Error deleting S3 object for file ${file.id}:`, error)
+          // Continue even if S3 deletion fails
         }
       })
       
@@ -51,7 +51,7 @@ export async function POST() {
         promises.push(
           (async () => {
             try {
-              await del(media.coverUrl!)
+              await deleteObject(media.coverUrl!)
             } catch (error) {
               console.error(`Error deleting cover for media ${media.id}:`, error)
             }

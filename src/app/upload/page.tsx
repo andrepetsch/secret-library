@@ -4,7 +4,6 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { upload } from '@vercel/blob/client'
 import { extractMetadataClient } from '@/lib/metadata-client'
 
 interface Media {
@@ -179,27 +178,31 @@ function UploadForm() {
         }
       }
 
-      // Upload directly to Vercel Blob using client-side upload
-      const blob = await upload(selectedFile.name, selectedFile, {
-        access: 'public',
-        handleUploadUrl: '/api/upload',
-        clientPayload: JSON.stringify(metadata),
+      // Step 1: Upload file to server (server uploads to S3 — no CORS)
+      const uploadFormData = new FormData()
+      uploadFormData.append('file', selectedFile)
+
+      const uploadResponse = await fetch('/api/upload', {
+        method: 'POST',
+        body: uploadFormData,
       })
 
-      console.log('Upload successful:', blob.url)
-      console.log('Download URL:', blob.downloadUrl)
-      
-      // Create media record in database after upload completes
-      // This is more reliable than relying on the onUploadCompleted webhook
-      // Use downloadUrl instead of url for proper CORS and content-type headers
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json()
+        throw new Error(errorData.error || 'Failed to upload file')
+      }
+
+      const { s3Key } = await uploadResponse.json()
+
+      // Step 2: Create media record in database
       const createMediaResponse = await fetch('/api/media/create-from-blob', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          blobUrl: blob.downloadUrl,
-          contentType: blob.contentType,
+          s3Key,
+          contentType: selectedFile.type,
           ...metadata
         }),
       })

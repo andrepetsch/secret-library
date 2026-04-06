@@ -31,8 +31,9 @@ export default function ReaderPage() {
   const handleDownload = () => {
     if (!selectedFile || !media) return
     
+    const proxyUrl = `/api/media/${media.id}/file/${selectedFile.id}?download=true`
     const link = document.createElement('a')
-    link.href = selectedFile.fileUrl
+    link.href = proxyUrl
     link.download = `${media.title}.${selectedFile.fileType}`
     document.body.appendChild(link)
     link.click()
@@ -130,9 +131,9 @@ export default function ReaderPage() {
 
       <div className="h-[calc(100vh-4rem)]">
         {selectedFile.fileType === 'epub' ? (
-          <EpubReader url={selectedFile.fileUrl} mediaId={media.id} fileId={selectedFile.id} />
+          <EpubReader url={`/api/media/${media.id}/file/${selectedFile.id}`} mediaId={media.id} fileId={selectedFile.id} />
         ) : (
-          <PdfReader url={selectedFile.fileUrl} mediaId={media.id} fileId={selectedFile.id} />
+          <PdfReader url={`/api/media/${media.id}/file/${selectedFile.id}`} mediaId={media.id} fileId={selectedFile.id} />
         )}
       </div>
     </div>

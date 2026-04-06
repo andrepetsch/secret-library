@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendToKindleEmail, validateEmailConfig } from '@/lib/email'
+import { getObjectStream } from '@/lib/s3'
+import { Readable } from 'stream'
 
 interface MediaFileRecord {
   id: string
@@ -66,14 +68,17 @@ export async function POST(
       return NextResponse.json({ error: 'No suitable file found' }, { status: 400 })
     }
 
-    // Fetch the file content from Vercel Blob
-    const fileResponse = await fetch(fileToSend.fileUrl)
-    if (!fileResponse.ok) {
+    // Fetch the file content from S3
+    const s3Response = await getObjectStream(fileToSend.fileUrl)
+    if (!s3Response.Body) {
       return NextResponse.json({ error: 'Failed to retrieve the file' }, { status: 502 })
     }
 
-    const arrayBuffer = await fileResponse.arrayBuffer()
-    const fileBuffer = Buffer.from(arrayBuffer)
+    const chunks: Buffer[] = []
+    for await (const chunk of s3Response.Body as Readable) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+    }
+    const fileBuffer = Buffer.concat(chunks)
 
     // Build a clean file name from the book title
     const safeTitle = media.title.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_')

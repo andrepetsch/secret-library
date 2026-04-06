@@ -11,20 +11,20 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
-function getInitialTheme(): Theme {
-  if (typeof window === 'undefined') return 'light'
-  
-  const savedTheme = localStorage.getItem('theme') as Theme | null
-  if (savedTheme) {
-    return savedTheme
-  }
-  
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-  return prefersDark ? 'dark' : 'light'
-}
-
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(getInitialTheme)
+  // Always start with 'light' so the server-rendered HTML matches the initial
+  // client render (avoids React hydration mismatch). The real preference is
+  // applied after mount via the effect below.
+  const [theme, setTheme] = useState<Theme>('light')
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme') as Theme | null
+    if (savedTheme) {
+      setTheme(savedTheme)
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      setTheme('dark')
+    }
+  }, [])
 
   useEffect(() => {
     localStorage.setItem('theme', theme)
